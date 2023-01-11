@@ -1,0 +1,657 @@
+#!/usr/bin/env raku
+
+use KHPH;
+use Terminal::ANSIColor;
+use Prettier::Table;
+use Data::Dump::Tree;
+#use Grammar::Debugger;
+#use Grammar::Tracer;
+
+constant @dns-servers   = <10.10.43.40 10.11.43.40>;
+constant @dns-domains   = <wmata.com wmata.local>;
+constant @redis-servers = <jgstmgtgate1lpv.wmata.local ctstmgtgate1lpv.wmata.local>;
+
+my @redis-clis;
+for @redis-servers -> $redis-server {
+    my @cmd-string = sprintf("ssh -L 127.0.0.1:6379:%s:6379 %s /usr/bin/redis-cli", $redis-server, $redis-server).split: /\s+/;
+    @redis-clis.push: @cmd-string;
+}
+
+my  $ERRORLOGRETENTION  = '30 D';
+my  $INSTRLOGMAX        = 30;
+my  $SCHEDLOGRETENTION  = '30 D';
+my  $TXNBYTELIMIT       = '2097152k';
+for @redis-clis -> @redis-cli {
+    my @rcmd    = flat @redis-cli,
+                  '--raw',
+                  'MGET',
+                  'eb:isp:client:ba:dsm.sys:ERRORLOGRETENTION',
+                  'eb:isp:client:ba:dsm.sys:INSTRLOGMAX',
+                  'eb:isp:client:ba:dsm.sys:SCHEDLOGRETENTION',
+                  'eb:isp:client:ba:dsm.sys:TXNBYTELIMIT';
+    my $proc    = run   @rcmd, :out, :err;
+    my $out     = $proc.out.slurp(:close);
+    my $err     = $proc.err.slurp(:close);
+    warn 'FAILED: ' ~ @rcmd if $err;
+    if $out {
+        ($ERRORLOGRETENTION, $INSTRLOGMAX, $SCHEDLOGRETENTION, $TXNBYTELIMIT) =
+            $out.split: /\n/;
+        last;
+    }
+}
+
+#   Grammars
+
+################################################################################
+### ;; ANSWER SECTION:                                                       ###
+### mailhost.wmata.com.     259200  IN      CNAME   mailhost.f5dns.wmata.com.###
+### mailhost.f5dns.wmata.com. 6     IN      A       10.12.114.120            ###
+################################################################################
+
+grammar DIG_FORWARD {
+    token TOP {
+        ^
+        <name>
+        '.'
+        \s+
+        \d+
+        \s+
+        'IN'
+        \s+
+        'A'
+        \s+
+        <ip-addr>
+        $$
+        \n
+        $
+    }
+    token ip-addr {
+        $<octet-4> = \d ** 1..3 
+        '.'
+        $<octet-3> = \d ** 1..3 
+        '.'
+        $<octet-2> = \d ** 1..3 
+        '.'
+        $<octet-1> = \d ** 1..3 
+    }
+    regex name {
+        <alnum>+
+        '.'
+        <alnum>+
+        '.'
+        <alnum>+
+    }
+}
+
+################################################################################
+### ;; ANSWER SECTION:                                                       ###
+### 230.101.11.10.in-addr.arpa. 259200 IN   PTR     isplc02.wmata.com.       ###
+################################################################################
+
+grammar DIG_REVERSE {
+    token TOP {
+        ^
+        <in-addr-arpa>
+        \s+
+        \d+
+        \s+
+        'IN'
+        \s+
+        'PTR'
+        \s+
+        <name>
+        '.'
+        $$
+        \n
+        $
+    }
+    token in-addr-arpa {
+        $<octet-4> = \d ** 1..3 
+        '.'
+        $<octet-3> = \d ** 1..3 
+        '.'
+        $<octet-2> = \d ** 1..3 
+        '.'
+        $<octet-1> = \d ** 1..3 
+        '.in-addr.arpa.'
+    }
+    regex name {
+        <alnum>+
+        '.'
+        <alnum>+
+        '.'
+        <alnum>+
+    }
+}
+
+#   Check if supplied hostname/iplabel is resolvable into an IP address
+
+sub lookup-forward (Str:D $ip-label!) {
+    for @dns-servers.pick -> $dns-server {
+        for @dns-domains -> $dns-domain {
+            my $proc    = run   '/usr/bin/dig',
+                                '-4',
+                                '+nocomments',
+                                '+nocmd',
+                                '+nostats',
+                                '+noedns',
+                                '+nocookie',
+                                '+noquestion',
+                                '+noauthority',
+                                '+noadditional',
+                                '+domain=' ~ $dns-domain,
+                                '@' ~ $dns-server,
+                                $ip-label,
+                                'A',
+                                :out,
+                                :err;
+            my $out     = $proc.out.slurp(:close);
+            my $err     = $proc.err.slurp(:close);
+            my $match   = DIG_FORWARD.parse($out);
+            return $match<ip-addr>.Str with $match;
+        }
+    }
+    die 'lookup-forward match failed!';
+}
+
+sub lookup-reverse (Str:D $ip-address!) {
+    for @dns-servers.pick -> $dns-server {
+        for @dns-domains -> $dns-domain {
+            my $proc    = run   '/usr/bin/dig',
+                                '-4',
+                                '+nocomments',
+                                '+nocmd',
+                                '+nostats',
+                                '+noedns',
+                                '+nocookie',
+                                '+noquestion',
+                                '+noauthority',
+                                '+noadditional',
+                                '+domain=' ~ $dns-domain,
+                                '@' ~ $dns-server,
+                                '-x',
+                                $ip-address,
+                                'IN',
+                                :out,
+                                :err;
+            my $out     = $proc.out.slurp(:close);
+            my $err     = $proc.err.slurp(:close);
+            my $match   = DIG_REVERSE.parse($out);
+            return $match<name>.Str;
+        }
+    }
+    die 'lookup-reverse match failed!';
+}
+
+enum OS (
+            AIX     => 'AIX',
+            LINUX   => 'Linux',
+            WINDOWS => 'Windows',
+        );
+
+sub MAIN (
+    OS   :$os!,                             #= Operating System of ISP Client
+    Str  :$isp-client-name,                 #= ISP client system name
+    Str  :$isp-client-if-ip-label,          #= ISP client interface IPV4 label
+    Str  :$isp-client-if-ip-address,        #= ISP client interface IPV4 address
+    Str  :$isp-server-name,                 #= ISP server name
+    Str  :$isp-server-if-ip-label,          #= ISP server interface IPV4 label
+    Str  :$isp-server-if-ip-address,        #= ISP server interface IPV4 address
+) {
+    unless $isp-server-name || $isp-server-if-ip-label || $isp-server-if-ip-address {
+        colored('No ISP ', 'bold inverse red').print;
+        colored('server', 'bold yellow on_red').print;
+        colored(' information supplied!', 'bold inverse red').put;
+        put $*USAGE;
+        exit;
+    }
+    unless $isp-client-name || $isp-client-if-ip-label || $isp-client-if-ip-address {
+        colored('No ISP ', 'bold inverse red').print;
+        colored('client', 'bold yellow on_red').print;
+        colored(' information supplied!', 'bold inverse red').put;
+        put $*USAGE;
+        exit;
+    }
+
+#   Sort out the ISP server info
+
+#   my $canonical-isp-server-if-ip-label;
+#   if $isp-server-name {
+#       my $canonical-isp-server-if-ip-label = lookup_reverse($isp-server-name);
+#       if $isp-server-if-ip-address {
+#           
+#           if $isp-server-if-ip-label {
+#
+#           }
+#       }
+#   } 
+#   elsif $isp-server-if-ip-address {
+#       get canonical ip label
+#   } 
+#   if an IP address was provided
+
+#
+#   read dsm.sys SERVERNAME stanzas
+#   find a match with whatever was given in $isp-server-name, et. al.
+#   query the actual ISP server for SYSTEM_NAME from STATUS
+
+    my $isp-server-system-name;
+    $isp-server-system-name                 = $isp-server-name with $isp-server-name;
+    my $canonical-isp-server-if-ip-label;
+    my $isp-server-if-ip-addr;
+    with $isp-server-if-ip-address {
+        $isp-server-if-ip-addr              = $isp-server-if-ip-address;
+        $canonical-isp-server-if-ip-label   = lookup-reverse($isp-server-if-ip-addr);
+    }
+    else {
+        my $name-to-lookup;
+        $name-to-lookup                     = $isp-server-name with $isp-server-name;
+        $name-to-lookup                     = $isp-server-if-ip-label with $isp-server-if-ip-label;
+        $isp-server-if-ip-addr              = lookup-forward($name-to-lookup);
+        $canonical-isp-server-if-ip-label   = lookup-reverse($isp-server-if-ip-addr);
+    }
+    $isp-server-system-name                 = $canonical-isp-server-if-ip-label without $isp-server-system-name;
+    my $short-ISP-server-name               = $isp-server-system-name.split('.').head(1).uc;
+
+    my $proc    = run   
+#                       '/usr/bin/stdbuf',
+#                       '-i0',
+#                       '-o0',
+#                       '-e0',
+                        '/usr/bin/dsmadmc',
+                        '-SE=' ~ 'A028441' ~ '_' ~ $short-ISP-server-name,
+                        '-ID=' ~ 'A028441',
+                        '-PA=' ~ KHPH.new(:stash-path('/home/mdevine/.isp/admin/' ~ $short-ISP-server-name ~ '/A028441.khph')).expose,
+                        '-DATAONLY=YES',
+                        '-DISPLAYMODE=TABLE',
+                        '-TABDELIMITED',
+                        'SELECT',
+                        'SYSTEM_NAME',
+                        'FROM',
+                        'STATUS',
+                        :err,
+                        :out;
+    my $err     = $proc.err.slurp(:close);
+    my $out     = $proc.out.slurp(:close);
+    my $node-name;
+    my $system-name;
+    my $ISP-client-name;
+    unless $proc.exitcode {
+        $system-name        = $out;
+        $ISP-client-name    = $system-name with $system-name;
+    }
+
+    my $isp-client-system-name;
+    $isp-client-system-name                 = $isp-client-name with $isp-client-name;
+    my $canonical-isp-client-if-ip-label;
+    my $isp-client-if-ip-addr;
+    with $isp-client-if-ip-address {
+        $isp-client-if-ip-addr              = $isp-client-if-ip-address;
+        $canonical-isp-client-if-ip-label   = lookup-reverse($isp-client-if-ip-addr);
+    }
+    else {
+        my $name-to-lookup;
+        $name-to-lookup                     = $isp-client-name with $isp-client-name;
+        $name-to-lookup                     = $isp-client-if-ip-label with $isp-client-if-ip-label;
+        $isp-client-if-ip-addr              = lookup-forward($name-to-lookup);
+        $canonical-isp-client-if-ip-label   = lookup-reverse($isp-client-if-ip-addr);
+    }
+    $isp-client-system-name                 = $canonical-isp-client-if-ip-label without $isp-client-system-name;
+    my $short-ISP-client-name               = $isp-client-system-name.split('.').head(1).uc;
+
+    $proc   = run   
+#                   '/usr/bin/stdbuf',
+#                   '-i0',
+#                   '-o0',
+#                   '-e0',
+                    '/usr/bin/dsmadmc',
+                    '-SE=' ~ 'A028441' ~ '_' ~ $short-ISP-server-name,
+                    '-ID=' ~ 'A028441',
+                    '-PA=' ~ KHPH.new(:stash-path('/home/mdevine/.isp/admin/' ~ $short-ISP-server-name ~ '/A028441.khph')).expose,
+                    '-DATAONLY=YES',
+                    '-DISPLAYMODE=TABLE',
+                    '-TABDELIMITED',
+                    'SELECT',
+                    'NODE_NAME,SESSION_SECURITY',
+                    'FROM',
+                    'NODES',
+                    'WHERE',
+                    'NODE_NAME=' ~ q|'| ~ $short-ISP-client-name ~ q|'|,
+                    :err,
+                    :out;
+    $err    = $proc.err.slurp(:close);
+    $out    = $proc.out.slurp(:close);
+    my $session-security;
+    unless $proc.exitcode {
+        ($node-name, $session-security) = $out.split: /\t/;
+        $short-ISP-client-name          = $node-name with $node-name;
+    }
+
+    my $table = Prettier::Table.new:
+        title => "IBM Spectrum Protect Configuration Summary",
+        field-names => ["ISP Server Name", "ISP Server IF Label", "ISP Server IF Address", "ISP Client Name", "ISP Client IF Label", "ISP Client IF Address"],
+        align => %('ISP Server Name' => 'l'),
+    ;
+
+    given $table {
+        .add-row: [
+                    $short-ISP-server-name,
+                    $canonical-isp-server-if-ip-label,
+                    $isp-server-if-ip-addr,
+                    $short-ISP-client-name,
+                    $canonical-isp-client-if-ip-label,
+                    $isp-client-if-ip-addr
+                  ];
+    }
+    put $table;
+
+    with $node-name {
+        colored('UPDATE NODE ' ~ $node-name ~ ' SESSIONSECURITY=TRANSITIONAL', 'white on_black').put if $session-security !~~ /:i ^Transitional/;
+    }
+    else {
+        colored('REGISTER NODE '
+                ~ $short-ISP-client-name
+                ~ ' '
+                ~ '********'
+                ~ ' '
+                ~ 'DOMAIN=%%%'
+                ~ ' '
+                ~ 'MAXNUMMP=1'
+                ~ ' '
+                ~ 'CONTACT=Last, First'
+                ~ ' '
+                ~ 'EMAILADDRESS=group@wmata.com'
+                ~ ' '
+                ~ 'SESSIONSECURITY=TRANSITIONAL', 'white on_black').put;
+    }
+
+die 'FIX $isp-client-name.uc --> $short-ISP-client-name';
+
+    dsmgen(:$os,
+           :isp-server-name($isp-server-system-name),
+           :isp-server-ip-label($canonical-isp-server-if-ip-label),
+           :isp-server-ip-address($isp-server-if-ip-addr),
+           :isp-client-name($short-ISP-client-name),
+           :isp-client-ip-label($canonical-isp-client-if-ip-label),
+           :isp-client-ip-address($isp-client-if-ip-addr),
+          );
+}
+
+multi sub dsmgen(   OS      :$os where $os.Str eq 'AIX',
+                    Str:D   :$isp-server-name,
+                    Str:D   :$isp-server-ip-label,
+                    Str:D   :$isp-server-ip-address,
+                    Str:D   :$isp-client-name,
+                    Str:D   :$isp-client-ip-label,
+                    Str:D   :$isp-client-ip-address,
+                ) {
+my @commands;
+@commands[0] = qq:to/EODCODECREATE/;
+cat > /usr/tivoli/tsm/client/ba/bin64/dsm.sys <<EODSMSYSCREATE
+SERVERNAME {$isp-client-name.uc}_{$isp-server-name.uc}
+    COMMMETHOD              TCPIP
+    COMPRESSION             YES
+    DEDUPCACHEPATH          /var/isp/ba/{$isp-client-name.uc}/DEDUPCACHE
+    DEDUPCACHESIZE          2048
+    DEDUPLICATION           YES
+    ENABLEINSTRUMENTATION   YES
+    ERRORLOGNAME            /var/isp/ba/{$isp-client-name.uc}/dsmerror.log
+    ERRORLOGRETENTION       {$ERRORLOGRETENTION}
+    INCLEXCL                /var/isp/ba/{$isp-client-name.uc}/INCLEXCL.ISP
+    INSTRLOGMAX             {$INSTRLOGMAX}
+    INSTRLOGNAME            /var/isp/ba/{$isp-client-name.uc}/dsminstr.log
+    MANAGEDSERVICES         SCHEDULE WEBCLIENT
+    NODENAME                {$isp-client-name.uc}
+*   PRESCHEDULECMD          /var/isp/ba/{$isp-client-name.uc}/presched.sh
+*   POSTSCHEDULECMD         /var/isp/ba/{$isp-client-name.uc}/postsched.sh
+    PASSWORDACCESS          GENERATE
+    PASSWORDDIR             /var/isp/ba/{$isp-client-name.uc}/passwd
+    RESOURCEUTILIZATION     1
+    SCHEDLOGNAME            /var/isp/ba/{$isp-client-name.uc}/dsmsched.log
+    SCHEDLOGRETENTION       {$SCHEDLOGRETENTION}
+    SHMPORT                 1510
+    TCPCADADDRESS           {$isp-client-ip-label}
+*   TCPCADADDRESS           {$isp-client-ip-address}
+    TCPSERVERADDRESS        {$isp-server-ip-label}
+*   TCPSERVERADDRESS        {$isp-server-ip-address}
+    TXNBYTELIMIT            {$TXNBYTELIMIT}
+EODSMSYSCREATE
+chmod 644 /usr/tivoli/tsm/client/ba/bin64/dsm.sys
+chown root:system /usr/tivoli/tsm/client/ba/bin64/dsm.sys
+mkdir /var/isp
+chmod 2750 /var/isp
+chown root:system /var/isp
+mkdir /var/isp/ba
+chmod 2750 /var/isp/ba
+chown root:system /var/isp/ba
+mkdir /var/isp/ba/{$isp-client-name.uc}
+chmod 2770 /var/isp/ba/{$isp-client-name.uc}
+chown root:system /var/isp/ba/{$isp-client-name.uc}
+mkdir /var/isp/ba/{$isp-client-name.uc}/DEDUPCACHE
+chmod 2770 /var/isp/ba/{$isp-client-name.uc}/DEDUPCACHE
+chown root:system /var/isp/ba/{$isp-client-name.uc}/DEDUPCACHE
+mkdir /var/isp/ba/{$isp-client-name.uc}/PASSWD
+chmod 0700 /var/isp/ba/{$isp-client-name.uc}/PASSWD
+chmod g-s /var/isp/ba/{$isp-client-name.uc}/PASSWD
+chown root:system /var/isp/ba/{$isp-client-name.uc}/PASSWD
+touch /var/isp/ba/{$isp-client-name.uc}/dsmerror.log
+chmod 660 /var/isp/ba/{$isp-client-name.uc}/dsmerror.log
+chown root:system /var/isp/ba/{$isp-client-name.uc}/dsmerror.log
+touch /var/isp/ba/{$isp-client-name.uc}/dsminstr.log
+chmod 660 /var/isp/ba/{$isp-client-name.uc}/dsminstr.log
+chown root:system /var/isp/ba/{$isp-client-name.uc}/dsminstr.log
+touch /var/isp/ba/{$isp-client-name.uc}/dsminstr.log.lock
+chmod 660 /var/isp/ba/{$isp-client-name.uc}/dsminstr.log.lock
+chown root:system /var/isp/ba/{$isp-client-name.uc}/dsminstr.log.lock
+if [ ! -f /var/isp/ba/{$isp-client-name.uc}/presched.sh ] ; then echo -e '#!/bin/sh\\nexit 0' > /var/isp/ba/{$isp-client-name.uc}/presched.sh ; fi
+chmod 740 /var/isp/ba/{$isp-client-name.uc}/presched.sh
+chown root:system /var/isp/ba/{$isp-client-name.uc}/presched.sh
+if [ ! -f /var/isp/ba/{$isp-client-name.uc}/postsched.sh ] ; then echo -e '#!/bin/sh\\nexit 0' > /var/isp/ba/{$isp-client-name.uc}/postsched.sh ; fi
+chmod 740 /var/isp/ba/{$isp-client-name.uc}/postsched.sh
+chown root:system /var/isp/ba/{$isp-client-name.uc}/postsched.sh
+touch /var/isp/ba/{$isp-client-name}/INCLEXCL.ISP
+chmod 640 /var/isp/ba/{$isp-client-name.uc}/INCLEXCL.ISP
+chown root:system /var/isp/ba/{$isp-client-name.uc}/INCLEXCL.ISP
+touch /var/isp/ba/{$isp-client-name.uc}/dsmsched.log
+chmod 640 /var/isp/ba/{$isp-client-name.uc}/dsmsched.log
+chown root:system /var/isp/ba/{$isp-client-name.uc}/dsmsched.log
+touch /var/isp/ba/{$isp-client-name.uc}/dsmwebcl.log
+chmod 640 /var/isp/ba/{$isp-client-name.uc}/dsmwebcl.log
+chown root:system /var/isp/ba/{$isp-client-name.uc}/dsmwebcl.log
+echo SERVERNAME {$isp-client-name.uc}_{$isp-server-name.uc} > /usr/tivoli/tsm/client/ba/bin64/dsm.opt
+chmod 644 /usr/tivoli/tsm/client/ba/bin64/dsm.opt
+chown root:system /usr/tivoli/tsm/client/ba/bin64/dsm.opt
+EODCODECREATE
+@commands[1] = 'dsmc query session';
+@commands[2] = 'mkitab "dsmcad::once:/usr/bin/dsmcad -optfile=/usr/tivoli/tsm/client/ba/bin64/dsm.opt"';
+@commands[3] = '/usr/bin/dsmcad -optfile=/usr/tivoli/tsm/client/ba/bin64/dsm.opt';
+colored(@commands[0], 'red').print;
+colored(@commands[1], 'white on_red').put;
+colored(@commands[2], 'red').put;
+colored(@commands[3], 'red').put;
+}
+
+multi sub dsmgen(
+                    OS      :$os where $os.Str eq 'Linux',
+                    Str:D   :$isp-server-name,
+                    Str:D   :$isp-server-ip-label,
+                    Str:D   :$isp-server-ip-address,
+                    Str:D   :$isp-client-name,
+                    Str:D   :$isp-client-ip-label,
+                    Str:D   :$isp-client-ip-address,
+                ) {
+my @commands;
+@commands[0] = qq:to/EODCODECREATE/;
+cat > /opt/tivoli/tsm/client/ba/bin64/dsm.sys <<EODSMSYSCREATE
+SERVERNAME {$isp-client-name.uc}_{$isp-server-name.uc}
+    COMMMETHOD              TCPIP
+    COMPRESSION             YES
+    DEDUPCACHEPATH          /var/isp/ba/{$isp-client-name.uc}/DEDUPCACHE
+    DEDUPCACHESIZE          2048
+    DEDUPLICATION           YES
+    ENABLEINSTRUMENTATION   YES
+    ERRORLOGNAME            /var/isp/ba/{$isp-client-name.uc}/dsmerror.log
+    ERRORLOGRETENTION       $ERRORLOGRETENTION
+    INCLEXCL                /var/isp/ba/{$isp-client-name.uc}/INCLEXCL.ISP
+    INSTRLOGMAX             {$INSTRLOGMAX}
+    INSTRLOGNAME            /var/isp/ba/{$isp-client-name.uc}/dsminstr.log
+    MANAGEDSERVICES         SCHEDULE WEBCLIENT
+    NODENAME                {$isp-client-name.uc}
+*   PRESCHEDULECMD          /var/isp/ba/{$isp-client-name.uc}/presched.sh
+*   POSTSCHEDULECMD         /var/isp/ba/{$isp-client-name.uc}/postsched.sh
+    PASSWORDACCESS          GENERATE
+    PASSWORDDIR             /var/isp/ba/{$isp-client-name.uc}/passwd
+    RESOURCEUTILIZATION     1
+    SCHEDLOGNAME            /var/isp/ba/{$isp-client-name.uc}/dsmsched.log
+    SCHEDLOGRETENTION       {$SCHEDLOGRETENTION}
+    SHMPORT                 1510
+    TCPCADADDRESS           {$isp-client-ip-label}
+*   TCPCADADDRESS           {$isp-client-ip-address}
+    TCPSERVERADDRESS        {$isp-server-ip-label}
+*   TCPSERVERADDRESS        {$isp-server-ip-address}
+    TXNBYTELIMIT            {$TXNBYTELIMIT}
+EODSMSYSCREATE
+chmod 644 /opt/tivoli/tsm/client/ba/bin64/dsm.sys
+chown root:root /opt/tivoli/tsm/client/ba/bin64/dsm.sys
+mkdir /var/isp
+chmod 2750 /var/isp
+chown root:root /var/isp
+mkdir /var/isp/ba
+chmod 2750 /var/isp/ba
+chown root:root /var/isp/ba
+mkdir /var/isp/ba/{$isp-client-name.uc}
+chmod 2770 /var/isp/ba/{$isp-client-name.uc}
+chown root:root /var/isp/ba/{$isp-client-name.uc}
+mkdir /var/isp/ba/{$isp-client-name.uc}/DEDUPCACHE
+chmod 2770 /var/isp/ba/{$isp-client-name.uc}/DEDUPCACHE
+chown root:root /var/isp/ba/{$isp-client-name.uc}/DEDUPCACHE
+mkdir /var/isp/ba/{$isp-client-name.uc}/PASSWD
+chmod 0700 /var/isp/ba/{$isp-client-name.uc}/PASSWD
+chmod g-s /var/isp/ba/{$isp-client-name.uc}/PASSWD
+chown root:root /var/isp/ba/{$isp-client-name.uc}/PASSWD
+touch /var/isp/ba/{$isp-client-name.uc}/dsmerror.log
+chmod 660 /var/isp/ba/{$isp-client-name.uc}/dsmerror.log
+chown root:root /var/isp/ba/{$isp-client-name.uc}/dsmerror.log
+touch /var/isp/ba/{$isp-client-name.uc}/dsminstr.log
+chmod 660 /var/isp/ba/{$isp-client-name.uc}/dsminstr.log
+chown root:root /var/isp/ba/{$isp-client-name.uc}/dsminstr.log
+touch /var/isp/ba/{$isp-client-name.uc}/dsminstr.log.lock
+chmod 660 /var/isp/ba/{$isp-client-name.uc}/dsminstr.log.lock
+chown root:root /var/isp/ba/{$isp-client-name.uc}/dsminstr.log.lock
+if [ ! -f /var/isp/ba/{$isp-client-name.uc}/presched.sh ] ; then echo -e '#!/bin/sh\\nexit 0' > /var/isp/ba/{$isp-client-name.uc}/presched.sh ; fi
+chmod 740 /var/isp/ba/{$isp-client-name.uc}/presched.sh
+chown root:root /var/isp/ba/{$isp-client-name.uc}/presched.sh
+if [ ! -f /var/isp/ba/{$isp-client-name.uc}/postsched.sh ] ; then echo -e '#!/bin/sh\\nexit 0' > /var/isp/ba/{$isp-client-name.uc}/postsched.sh ; fi
+chmod 740 /var/isp/ba/{$isp-client-name.uc}/postsched.sh
+chown root:root /var/isp/ba/{$isp-client-name.uc}/postsched.sh
+touch /var/isp/ba/{$isp-client-name}/INCLEXCL.ISP
+chmod 640 /var/isp/ba/{$isp-client-name.uc}/INCLEXCL.ISP
+chown root:root /var/isp/ba/{$isp-client-name.uc}/INCLEXCL.ISP
+touch /var/isp/ba/{$isp-client-name.uc}/dsmsched.log
+chmod 640 /var/isp/ba/{$isp-client-name.uc}/dsmsched.log
+chown root:root /var/isp/ba/{$isp-client-name.uc}/dsmsched.log
+touch /var/isp/ba/{$isp-client-name.uc}/dsmwebcl.log
+chmod 640 /var/isp/ba/{$isp-client-name.uc}/dsmwebcl.log
+chown root:root /var/isp/ba/{$isp-client-name.uc}/dsmwebcl.log
+echo SERVERNAME {$isp-client-name.uc}_{$isp-server-name.uc} > /opt/tivoli/tsm/client/ba/bin64/dsm.opt
+chmod 644 /opt/tivoli/tsm/client/ba/bin64/dsm.opt
+chown root:root /opt/tivoli/tsm/client/ba/bin64/dsm.opt
+EODCODECREATE
+@commands[1] = 'dsmc query session';
+@commands[2] = 'systemctl daemon-reload';
+@commands[3] = 'systemctl enable --now dsmcad.service';
+colored(@commands[0], 'cyan').print;
+colored(@commands[1], 'white on_cyan').put;
+colored(@commands[2], 'cyan').put;
+colored(@commands[3], 'cyan').put;
+}
+
+multi sub dsmgen(
+                    OS      :$os where $os.Str eq 'Windows',
+                    Str:D   :$isp-server-name,
+                    Str:D   :$isp-server-ip-label,
+                    Str:D   :$isp-server-ip-address,
+                    Str:D   :$isp-client-name,
+                    Str:D   :$isp-client-ip-label,
+                    Str:D   :$isp-client-ip-address,
+                ) {
+    my @commands;
+    my $ISP-CLIENT-NAME = $isp-client-name.uc;
+    @commands[0] = Q:q:s:to/EODCODECREATE/;
+    IF NOT EXIST "C:\Program Files\Tivoli\TSM\baclient\NODES MKDIR "C:\Program Files\Tivoli\TSM\baclient\NODES"
+    IF NOT EXIST "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME] MKDIR "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]
+    IF NOT EXIST "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]\DEDUPCACHE" MKDIR "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]\DEDUPCACHE"
+    CD /D "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]
+    IF EXIST dsm.opt COPY /Y dsm.opt dsm.opt.ORIG
+    ECHO ******************************************************************************** > dsm.opt
+    ECHO ***               Backup/Archive Client for local volumes only               *** >> dsm.opt
+    ECHO ******************************************************************************** >> dsm.opt
+    ECHO  CLUSTERNODE                  NO >> dsm.opt
+    ECHO  COMMMETHOD                   TCPIP >> dsm.opt
+    ECHO  COMPRESSION                  YES >> dsm.opt
+    ECHO  DEDUPCACHEPATH               "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]\DEDUPCACHE" >> dsm.opt
+    ECHO  DEDUPCACHESIZE               2048 >> dsm.opt
+    ECHO  DEDUPLICATION                YES >> dsm.opt
+    ECHO  DOMAIN                       ALL-LOCAL >> dsm.opt
+    ECHO  ENABLEDEDUPCACHE             YES >> dsm.opt
+    ECHO  ENABLEINSTRUMENTATION        NO >> dsm.opt
+    ECHO  ERRORLOGNAME                 "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]\dsmerror.log" >> dsm.opt
+    ECHO  ERRORLOGRETENTION            \qq[$ERRORLOGRETENTION] >> dsm.opt
+    ECHO  HTTPPORT                     1581 >> dsm.opt
+    ECHO  INCLEXCL                     "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]\INCLEXCL.ISP" >> dsm.opt
+    ECHO  INSTRLOGMAX                  \qq[$INSTRLOGMAX] >> dsm.opt
+    ECHO  INSTRLOGNAME                 "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]\dsminstr.log" >> dsm.opt
+    ECHO  MANAGEDSERVICES              SCHEDULE WEBCLIENT >> dsm.opt
+    ECHO  NODENAME                     \qq[$ISP-CLIENT-NAME] >> dsm.opt
+    ECHO  PASSWORDACCESS               GENERATE >> dsm.opt
+    ECHO  QUERYSCHEDPERIOD             4 >> dsm.opt
+    ECHO *PRESCHEDULECMD               "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]\PRESCHEDCMD.BAT" >> dsm.opt
+    ECHO *POSTSCHEDULECMD              "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]\POSTSCHEDCMD.BAT" >> dsm.opt
+    ECHO  RESOURCEUTILIZATION          5 >> dsm.opt
+    ECHO  SCHEDLOGNAME                 "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]\dsmsched.log" >> dsm.opt
+    ECHO  SCHEDLOGRETENTION            \qq[$SCHEDLOGRETENTION] >> dsm.opt
+    ECHO  SCHEDMODE                    POLLING >> dsm.opt
+    ECHO  SNAPSHOTPROVIDERFS           NONE >> dsm.opt
+    ECHO  TCPBUFFSIZE                  32 >> dsm.opt
+    ECHO  TCPCLIENTADDRESS             \qq[$isp-client-ip-label] >> dsm.opt
+    ECHO *TCPCLIENTADDRESS             \qq[$isp-client-ip-address] >> dsm.opt
+    ECHO  TCPPORT                      1500 >> dsm.opt
+    ECHO  TCPSERVERADDRESS             \qq[$isp-server-ip-label] >> dsm.opt
+    ECHO *TCPSERVERADDRESS             \qq[$isp-server-ip-address] >> dsm.opt
+    ECHO  TCPWINDOWSIZE                0 >> dsm.opt
+    ECHO  TXNBYTELIMIT                 \qq[$TXNBYTELIMIT] >> dsm.opt
+    ECHO  WEBPORTS                     1582 1581 >> dsm.opt
+    ECHO  INCLUDE.FS %SYSTEMDRIVE% SNAPSHOTPROVIDERFS=VSS > "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]\INCLEXCL.ISP"
+    WMIC product get name | FIND "Microsoft SQL Server" > NUL
+    IF %ERRORLEVEL% EQU 0 (
+        echo  EXCLUDE '*:\...\*.[Ll][Dd][Ff]' >> "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]\INCLEXCL.ISP"
+        echo  EXCLUDE '*:\...\*.[Mm][Dd][Ff]' >> "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]\INCLEXCL.ISP"
+        echo  EXCLUDE '*:\...\*.[Nn][Dd][Ff]' >> "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]\INCLEXCL.ISP"
+    )
+    EODCODECREATE
+    @commands[1] = 'dsmc query session -optfile="C:\Program Files\Tivoli\TSM\baclient\NODES\\'
+                    ~ $ISP-CLIENT-NAME
+                    ~ '\dsm.opt"';
+    @commands[2] = 'dsmcutil install scheduler /name:"ISP Client Scheduler '
+                    ~ $ISP-CLIENT-NAME
+                    ~ '" /node:'
+                    ~ $ISP-CLIENT-NAME
+                    ~ ' /password:"jgb6005th" /autostart:no /startnow:no /optfile:"C:\Program Files\Tivoli\TSM\baclient\NODES\\'
+                    ~ $ISP-CLIENT-NAME
+                    ~ '\dsm.opt"';
+    @commands[3] = 'dsmcutil install cad /name:"ISP Client Acceptor '
+                    ~ $ISP-CLIENT-NAME
+                    ~ '" /node:'
+                    ~ $ISP-CLIENT-NAME
+                    ~ ' /password:"jgb6005th" /autostart:yes /startnow:yes /cadschedname:"ISP Client Schedule '
+                    ~ $ISP-CLIENT-NAME
+                    ~ '" /optfile:"C:\Program Files\Tivoli\TSM\baclient\NODES\\'
+                    ~ $ISP-CLIENT-NAME
+                    ~ '\dsm.opt"';
+    colored(@commands[0], 'magenta').print;
+    colored(@commands[1], 'white on_magenta').put;
+    colored(@commands[2], 'magenta').put;
+    colored(@commands[3], 'magenta').put;
+}
+
+=finish
