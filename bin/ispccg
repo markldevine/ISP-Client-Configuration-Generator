@@ -7,7 +7,7 @@ use Data::Dump::Tree;
 #use Grammar::Debugger;
 #use Grammar::Tracer;
 
-constant @dns-servers   = <10.10.43.40 10.11.43.40>;
+constant @dns-servers   = '10.10.43.40', '10.11.43.40';
 constant @dns-domains   = <wmata.com wmata.local>;
 constant @redis-servers = <jgstmgtgate1lpv.wmata.local ctstmgtgate1lpv.wmata.local>;
 
@@ -75,11 +75,7 @@ grammar DIG_FORWARD {
         $<octet-1> = \d ** 1..3 
     }
     regex name {
-        <alnum>+
-        '.'
-        <alnum>+
-        '.'
-        <alnum>+
+        ( \w || '-' || '.' <!before \s> )+
     }
 }
 
@@ -116,11 +112,7 @@ grammar DIG_REVERSE {
         '.in-addr.arpa.'
     }
     regex name {
-        <alnum>+
-        '.'
-        <alnum>+
-        '.'
-        <alnum>+
+        ( \w || '-' || '.' <!before \s> )+
     }
 }
 
@@ -151,11 +143,11 @@ sub lookup-forward (Str:D $ip-label!) {
             return $match<ip-addr>.Str with $match;
         }
     }
-    die 'lookup-forward match failed!';
+    fail colored("lookup-forward '$ip-label' failed!", 'red on_black');
 }
 
 sub lookup-reverse (Str:D $ip-address!) {
-    for @dns-servers.pick -> $dns-server {
+    for @dns-servers -> $dns-server {
         for @dns-domains -> $dns-domain {
             my $proc    = run   '/usr/bin/dig',
                                 '-4',
@@ -167,7 +159,6 @@ sub lookup-reverse (Str:D $ip-address!) {
                                 '+noquestion',
                                 '+noauthority',
                                 '+noadditional',
-                                '+domain=' ~ $dns-domain,
                                 '@' ~ $dns-server,
                                 '-x',
                                 $ip-address,
@@ -177,10 +168,30 @@ sub lookup-reverse (Str:D $ip-address!) {
             my $out     = $proc.out.slurp(:close);
             my $err     = $proc.err.slurp(:close);
             my $match   = DIG_REVERSE.parse($out);
-            return $match<name>.Str;
+            return $match<name>.Str with $match<name>;
         }
     }
-    die 'lookup-reverse match failed!';
+#   Maybe internet only
+    my $proc    = run   '/usr/bin/dig',
+                        '-4',
+                        '+nocomments',
+                        '+nocmd',
+                        '+nostats',
+                        '+noedns',
+                        '+nocookie',
+                        '+noquestion',
+                        '+noauthority',
+                        '+noadditional',
+                        '-x',
+                        $ip-address,
+                        'IN',
+                        :out,
+                        :err;
+    my $out     = $proc.out.slurp(:close);
+    my $err     = $proc.err.slurp(:close);
+    my $match   = DIG_REVERSE.parse($out);
+    return $match<name>.Str with $match<name>;
+    fail colored("lookup-reverse '$ip-address' failed!", 'red on_black');
 }
 
 enum OS (
@@ -192,7 +203,7 @@ enum OS (
 sub MAIN (
     Str  :$isp-server-name!,            #= ISP server name (SELECT SERVER_NAME FROM STATUS)
     Str  :$isp-node-name!,              #= ISP client name (SELECT NODE_NAME FROM NODES)
-    OS   :$os!,                         #= Operating System of ISP Client
+    OS   :$os!,                         #= ISP client Operating System
     Str  :$isp-server-if-ip-label,      #= ISP server network interface IPV4 label
     Str  :$isp-server-if-ip-address,    #= ISP server network interface IPV4 address
     Str  :$isp-node-if-ip-label,        #= ISP client network interface IPV4 label
@@ -201,9 +212,8 @@ sub MAIN (
 
 #   Sort out the ISP server info
 
-    my $SERVER_NAME = $isp-server-name;
-
-#   read dsm.sys & find all records with $SERVER_NAME
+    my $SERVER_NAME = $isp-server-name.uc;
+    die "Set up '/opt/tivoli/tsm/client/ba/bin/dsm.sys' & /usr/bin/dsmadmc before using this script." unless '/opt/tivoli/tsm/client/ba/bin/dsm.sys'.IO.path:s;
     my @dsm-sys     = slurp('/opt/tivoli/tsm/client/ba/bin/dsm.sys').lines;
     my %stanzas;
     my $current-key = 'ERROR';
@@ -213,75 +223,58 @@ sub MAIN (
             next;
         }
         elsif $rcd ~~ m:i/ ^ \s* TCPS\w* \s+ $<value>=(.+) \s* $/ {
-            %stanzas{$current-key}<TCPSERVERADDRESS> = $/<value>;
+            %stanzas{$current-key}<TCPSERVERADDRESS> = $/<value>.Str;
         }
     }
-    ddt %stanzas;
-}
-
-=finish
-
-    my $canonical-isp-server-if-ip-label;
-    my $isp-server-if-ip-addr;
-    with $isp-server-if-ip-address {
-        $isp-server-if-ip-addr              = $isp-server-if-ip-address;
-        $canonical-isp-server-if-ip-label   = lookup-reverse($isp-server-if-ip-addr);
+    unless %stanzas{$SERVER_NAME}:exists {
+        warn "Use any of:"
+        .warn for %stanzas.keys;
+        die 'SERVERNAME stanza containing $isp-server-name <' ~ $SERVER_NAME ~ "> not found in '/opt/tivoli/tsm/client/ba/bin/dsm.sys'";
     }
-    else {
-        my $name-to-lookup;
-        $name-to-lookup                     = $isp-server-name with $isp-server-name;
-        $name-to-lookup                     = $isp-server-if-ip-label with $isp-server-if-ip-label;
-        $isp-server-if-ip-addr              = lookup-forward($name-to-lookup);
-        $canonical-isp-server-if-ip-label   = lookup-reverse($isp-server-if-ip-addr);
+    my $resolved-server-ip-label;
+    my $resolved-server-ip-address;
+    if %stanzas{$SERVER_NAME}<TCPSERVERADDRESS> ~~ m/ ^ (\d ** 1..3 '.' \d ** 1..3 '.' \d ** 1..3 '.' \d ** 1..3) $ / {
+        $resolved-server-ip-address = $/.Str;
+        $resolved-server-ip-label   = lookup-reverse($resolved-server-ip-address);
     }
-    $isp-server-system-name                 = $canonical-isp-server-if-ip-label without $isp-server-system-name;
-    my $short-ISP-server-name               = $isp-server-system-name.split('.').head(1).uc;
+    elsif %stanzas{$SERVER_NAME}<TCPSERVERADDRESS> ~~ m/ ^ <[\w.]>+ $ / {
+        $resolved-server-ip-address = lookup-forward(%stanzas{$SERVER_NAME}<TCPSERVERADDRESS>);
+        $resolved-server-ip-label = lookup-reverse($resolved-server-ip-address);
+    }
+    die "Unable to resolve IP information for $SERVER_NAME stanza in '/opt/tivoli/tsm/client/ba/bin/dsm.sys'" unless $resolved-server-ip-label && $resolved-server-ip-address;
 
-    my $proc    = run   
+    my $proc        = run   
 #                       '/usr/bin/stdbuf',
 #                       '-i0',
 #                       '-o0',
 #                       '-e0',
                         '/usr/bin/dsmadmc',
-                        '-SE=' ~ 'A028441' ~ '_' ~ $short-ISP-server-name,
+                        '-SE=' ~ 'A028441' ~ '_' ~ $SERVER_NAME,
                         '-ID=' ~ 'A028441',
-                        '-PA=' ~ KHPH.new(:stash-path('/home/mdevine/.isp/admin/' ~ $short-ISP-server-name ~ '/A028441.khph')).expose,
+                        '-PA=' ~ KHPH.new(:stash-path('/home/mdevine/.isp/admin/' ~ $SERVER_NAME.uc ~ '/A028441.khph')).expose,
                         '-DATAONLY=YES',
                         '-DISPLAYMODE=TABLE',
                         '-TABDELIMITED',
                         'SELECT',
-                        'SYSTEM_NAME',
+                        'SERVER_NAME',
                         'FROM',
                         'STATUS',
                         :err,
                         :out;
-    my $err     = $proc.err.slurp(:close);
-    my $out     = $proc.out.slurp(:close);
+    my $err         = $proc.err.slurp(:close);
+    my $out         = $proc.out.slurp(:close);
+    $SERVER_NAME    = $out.chomp unless $proc.exitcode;
 
-
-    unless $proc.exitcode {
-        $system-name        = $out;
-        $ISP-client-name    = $system-name with $system-name;
+    my $NODE_NAME   = $isp-node-name.uc;
+    my $resolved-client-ip-address;
+    my $resolved-client-ip-label;
+    try {
+        $resolved-client-ip-address = lookup-forward($NODE_NAME);
+        $resolved-client-ip-label   = lookup-reverse($resolved-client-ip-address);
+        CATCH {
+            warn "Unable to resolve IP information for $NODE_NAME" unless $resolved-client-ip-label && $resolved-client-ip-address;
+        }
     }
-
-    my $node-name   = $NODE_NAME;
-    my $isp-client-system-name;
-    $isp-client-system-name                 = $isp-client-name with $isp-client-name;
-    my $canonical-isp-client-if-ip-label;
-    my $isp-client-if-ip-addr;
-    with $isp-client-if-ip-address {
-        $isp-client-if-ip-addr              = $isp-client-if-ip-address;
-        $canonical-isp-client-if-ip-label   = lookup-reverse($isp-client-if-ip-addr);
-    }
-    else {
-        my $name-to-lookup;
-        $name-to-lookup                     = $isp-client-name with $isp-client-name;
-        $name-to-lookup                     = $isp-client-if-ip-label with $isp-client-if-ip-label;
-        $isp-client-if-ip-addr              = lookup-forward($name-to-lookup);
-        $canonical-isp-client-if-ip-label   = lookup-reverse($isp-client-if-ip-addr);
-    }
-    $isp-client-system-name                 = $canonical-isp-client-if-ip-label without $isp-client-system-name;
-    my $short-ISP-client-name               = $isp-client-system-name.split('.').head(1).uc;
 
     $proc   = run   
 #                   '/usr/bin/stdbuf',
@@ -289,9 +282,9 @@ sub MAIN (
 #                   '-o0',
 #                   '-e0',
                     '/usr/bin/dsmadmc',
-                    '-SE=' ~ 'A028441' ~ '_' ~ $short-ISP-server-name,
+                    '-SE=' ~ 'A028441' ~ '_' ~ $SERVER_NAME,
                     '-ID=' ~ 'A028441',
-                    '-PA=' ~ KHPH.new(:stash-path('/home/mdevine/.isp/admin/' ~ $short-ISP-server-name ~ '/A028441.khph')).expose,
+                    '-PA=' ~ KHPH.new(:stash-path('/home/mdevine/.isp/admin/' ~ $SERVER_NAME ~ '/A028441.khph')).expose,
                     '-DATAONLY=YES',
                     '-DISPLAYMODE=TABLE',
                     '-TABDELIMITED',
@@ -300,15 +293,17 @@ sub MAIN (
                     'FROM',
                     'NODES',
                     'WHERE',
-                    'NODE_NAME=' ~ q|'| ~ $short-ISP-client-name ~ q|'|,
+                    'NODE_NAME=' ~ q|'| ~ $NODE_NAME ~ q|'|,
                     :err,
                     :out;
     $err    = $proc.err.slurp(:close);
     $out    = $proc.out.slurp(:close);
+
     my $session-security;
     unless $proc.exitcode {
+        my $node-name;
         ($node-name, $session-security) = $out.split: /\t/;
-        $short-ISP-client-name          = $node-name with $node-name;
+        $NODE_NAME                      = $node-name with $node-name;
     }
 
     my $table = Prettier::Table.new:
@@ -319,22 +314,22 @@ sub MAIN (
 
     given $table {
         .add-row: [
-                    $short-ISP-server-name,
-                    $canonical-isp-server-if-ip-label,
-                    $isp-server-if-ip-addr,
-                    $short-ISP-client-name,
-                    $canonical-isp-client-if-ip-label,
-                    $isp-client-if-ip-addr
+                    $SERVER_NAME,
+                    $resolved-server-ip-label,
+                    $resolved-server-ip-address,
+                    $NODE_NAME,
+                    $resolved-client-ip-label,
+                    $resolved-client-ip-address
                   ];
     }
     put $table;
 
-    with $node-name {
-        colored('UPDATE NODE ' ~ $node-name ~ ' SESSIONSECURITY=TRANSITIONAL', 'white on_black').put if $session-security !~~ /:i ^Transitional/;
+    with $NODE_NAME && $session-security {
+        colored('UPDATE NODE ' ~ $NODE_NAME ~ ' SESSIONSECURITY=TRANSITIONAL', 'white on_black').put if $session-security !~~ /:i ^Transitional/;
     }
     else {
         colored('REGISTER NODE '
-                ~ $short-ISP-client-name
+                ~ $NODE_NAME
                 ~ ' '
                 ~ '********'
                 ~ ' '
@@ -349,15 +344,13 @@ sub MAIN (
                 ~ 'SESSIONSECURITY=TRANSITIONAL', 'white on_black').put;
     }
 
-die 'FIX $isp-client-name.uc --> $short-ISP-client-name';
-
     dsmgen(:$os,
-           :isp-server-name($isp-server-system-name),
-           :isp-server-ip-label($canonical-isp-server-if-ip-label),
-           :isp-server-ip-address($isp-server-if-ip-addr),
-           :isp-client-name($short-ISP-client-name),
-           :isp-client-ip-label($canonical-isp-client-if-ip-label),
-           :isp-client-ip-address($isp-client-if-ip-addr),
+           :isp-server-name($SERVER_NAME),
+           :isp-server-ip-label($resolved-server-ip-label),
+           :isp-server-ip-address($resolved-server-ip-address),
+           :isp-client-name($NODE_NAME),
+           :isp-client-ip-label($resolved-client-ip-label),
+           :isp-client-ip-address($resolved-client-ip-address),
           );
 }
 
@@ -402,19 +395,19 @@ SERVERNAME {$isp-client-name.uc}_{$isp-server-name.uc}
 EODSMSYSCREATE
 chmod 644 /usr/tivoli/tsm/client/ba/bin64/dsm.sys
 chown root:system /usr/tivoli/tsm/client/ba/bin64/dsm.sys
-mkdir /var/isp
+mkdir -p /var/isp
 chmod 2750 /var/isp
 chown root:system /var/isp
-mkdir /var/isp/ba
+mkdir -p /var/isp/ba
 chmod 2750 /var/isp/ba
 chown root:system /var/isp/ba
-mkdir /var/isp/ba/{$isp-client-name.uc}
+mkdir -p /var/isp/ba/{$isp-client-name.uc}
 chmod 2770 /var/isp/ba/{$isp-client-name.uc}
 chown root:system /var/isp/ba/{$isp-client-name.uc}
-mkdir /var/isp/ba/{$isp-client-name.uc}/DEDUPCACHE
+mkdir -p /var/isp/ba/{$isp-client-name.uc}/DEDUPCACHE
 chmod 2770 /var/isp/ba/{$isp-client-name.uc}/DEDUPCACHE
 chown root:system /var/isp/ba/{$isp-client-name.uc}/DEDUPCACHE
-mkdir /var/isp/ba/{$isp-client-name.uc}/PASSWD
+mkdir -p /var/isp/ba/{$isp-client-name.uc}/PASSWD
 chmod 0700 /var/isp/ba/{$isp-client-name.uc}/PASSWD
 chmod g-s /var/isp/ba/{$isp-client-name.uc}/PASSWD
 chown root:system /var/isp/ba/{$isp-client-name.uc}/PASSWD
@@ -424,9 +417,6 @@ chown root:system /var/isp/ba/{$isp-client-name.uc}/dsmerror.log
 touch /var/isp/ba/{$isp-client-name.uc}/dsminstr.log
 chmod 660 /var/isp/ba/{$isp-client-name.uc}/dsminstr.log
 chown root:system /var/isp/ba/{$isp-client-name.uc}/dsminstr.log
-touch /var/isp/ba/{$isp-client-name.uc}/dsminstr.log.lock
-chmod 660 /var/isp/ba/{$isp-client-name.uc}/dsminstr.log.lock
-chown root:system /var/isp/ba/{$isp-client-name.uc}/dsminstr.log.lock
 if [ ! -f /var/isp/ba/{$isp-client-name.uc}/presched.sh ] ; then echo -e '#!/bin/sh\\nexit 0' > /var/isp/ba/{$isp-client-name.uc}/presched.sh ; fi
 chmod 740 /var/isp/ba/{$isp-client-name.uc}/presched.sh
 chown root:system /var/isp/ba/{$isp-client-name.uc}/presched.sh
@@ -497,19 +487,19 @@ SERVERNAME {$isp-client-name.uc}_{$isp-server-name.uc}
 EODSMSYSCREATE
 chmod 644 /opt/tivoli/tsm/client/ba/bin64/dsm.sys
 chown root:root /opt/tivoli/tsm/client/ba/bin64/dsm.sys
-mkdir /var/isp
+mkdir -p /var/isp
 chmod 2750 /var/isp
 chown root:root /var/isp
-mkdir /var/isp/ba
+mkdir -p /var/isp/ba
 chmod 2750 /var/isp/ba
 chown root:root /var/isp/ba
-mkdir /var/isp/ba/{$isp-client-name.uc}
+mkdir -p /var/isp/ba/{$isp-client-name.uc}
 chmod 2770 /var/isp/ba/{$isp-client-name.uc}
 chown root:root /var/isp/ba/{$isp-client-name.uc}
-mkdir /var/isp/ba/{$isp-client-name.uc}/DEDUPCACHE
+mkdir -p /var/isp/ba/{$isp-client-name.uc}/DEDUPCACHE
 chmod 2770 /var/isp/ba/{$isp-client-name.uc}/DEDUPCACHE
 chown root:root /var/isp/ba/{$isp-client-name.uc}/DEDUPCACHE
-mkdir /var/isp/ba/{$isp-client-name.uc}/PASSWD
+mkdir -p /var/isp/ba/{$isp-client-name.uc}/PASSWD
 chmod 0700 /var/isp/ba/{$isp-client-name.uc}/PASSWD
 chmod g-s /var/isp/ba/{$isp-client-name.uc}/PASSWD
 chown root:root /var/isp/ba/{$isp-client-name.uc}/PASSWD
