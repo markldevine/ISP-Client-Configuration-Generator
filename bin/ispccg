@@ -552,8 +552,8 @@ multi sub dsmgen(
     my @commands;
     my $ISP-CLIENT-NAME = $isp-client-name.uc;
     @commands[0] = Q:q:s:to/EODCODECREATE/;
-    IF NOT EXIST "C:\Program Files\Tivoli\TSM\baclient\NODES MKDIR "C:\Program Files\Tivoli\TSM\baclient\NODES"
-    IF NOT EXIST "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME] MKDIR "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]
+    IF NOT EXIST "C:\Program Files\Tivoli\TSM\baclient\NODES" MKDIR "C:\Program Files\Tivoli\TSM\baclient\NODES"
+    IF NOT EXIST "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]" MKDIR "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]"
     IF NOT EXIST "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]\DEDUPCACHE" MKDIR "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]\DEDUPCACHE"
     CD /D "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]
     IF EXIST dsm.opt COPY /Y dsm.opt dsm.opt.ORIG
