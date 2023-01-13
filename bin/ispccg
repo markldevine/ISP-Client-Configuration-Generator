@@ -190,13 +190,14 @@ enum OS (
         );
 
 sub MAIN (
-    Str  :$isp-server-name!,            #= ISP server name (SELECT SERVER_NAME FROM STATUS)
-    Str  :$isp-node-name!,              #= ISP client name (SELECT NODE_NAME FROM NODES)
-    OS   :$os!,                         #= ISP client Operating System
-    Str  :$isp-server-if-ip-label,      #= ISP server network interface IPV4 label
-    Str  :$isp-server-if-ip-address,    #= ISP server network interface IPV4 address
-    Str  :$isp-node-if-ip-label,        #= ISP client network interface IPV4 label
-    Str  :$isp-node-if-ip-address,      #= ISP client network interface IPV4 address
+    Str:D   :$isp-server-name!,            #= ISP server name (SELECT SERVER_NAME FROM STATUS)
+    Str:D   :$isp-node-name!,              #= ISP client name (SELECT NODE_NAME FROM NODES)
+    OS      :$os!,                         #= ISP client Operating System
+    Str:D   :$isp-admin!,                  #= ISP server Admin account (CLASS=SYSTEM)
+    Str     :$isp-server-if-ip-label,      #= ISP server network interface IPV4 label
+    Str     :$isp-server-if-ip-address,    #= ISP server network interface IPV4 address
+    Str     :$isp-node-if-ip-label,        #= ISP client network interface IPV4 label
+    Str     :$isp-node-if-ip-address,      #= ISP client network interface IPV4 address
 ) {
 
 #   Sort out the ISP server info
@@ -238,9 +239,9 @@ sub MAIN (
 #                       '-o0',
 #                       '-e0',
                         '/usr/bin/dsmadmc',
-                        '-SE=' ~ 'A028441' ~ '_' ~ $SERVER_NAME,
-                        '-ID=' ~ 'A028441',
-                        '-PA=' ~ KHPH.new(:stash-path($*HOME ~ '/.isp/admin/' ~ $SERVER_NAME ~ '/A028441.khph')).expose,
+                        '-SE=' ~ $isp-admin ~ '_' ~ $SERVER_NAME,
+                        '-ID=' ~ $isp-admin,
+                        '-PA=' ~ KHPH.new(:stash-path($*HOME ~ '/.isp/admin/' ~ $SERVER_NAME ~ '/' ~ $isp-admin ~ '.khph')).expose,
                         '-DATAONLY=YES',
                         '-DISPLAYMODE=TABLE',
                         '-TABDELIMITED',
@@ -271,9 +272,9 @@ sub MAIN (
 #                   '-o0',
 #                   '-e0',
                     '/usr/bin/dsmadmc',
-                    '-SE=' ~ 'A028441' ~ '_' ~ $SERVER_NAME,
-                    '-ID=' ~ 'A028441',
-                    '-PA=' ~ KHPH.new(:stash-path($*HOME ~ '/.isp/admin/' ~ $SERVER_NAME ~ '/A028441.khph')).expose,
+                    '-SE=' ~ $isp-admin ~ '_' ~ $SERVER_NAME,
+                    '-ID=' ~ $isp-admin,
+                    '-PA=' ~ KHPH.new(:stash-path($*HOME ~ '/.isp/admin/' ~ $SERVER_NAME ~ '/' ~ $isp-admin ~ '.khph')).expose,
                     '-DATAONLY=YES',
                     '-DISPLAYMODE=TABLE',
                     '-TABDELIMITED',
