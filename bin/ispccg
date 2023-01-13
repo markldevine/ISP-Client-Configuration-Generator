@@ -3,7 +3,7 @@
 use KHPH;
 use Terminal::ANSIColor;
 use Prettier::Table;
-use Data::Dump::Tree;
+#use Data::Dump::Tree;
 #use Grammar::Debugger;
 #use Grammar::Tracer;
 
@@ -42,12 +42,6 @@ for @redis-clis -> @redis-cli {
 
 #   Grammars
 
-################################################################################
-### ;; ANSWER SECTION:                                                       ###
-### mailhost.wmata.com.     259200  IN      CNAME   mailhost.f5dns.wmata.com.###
-### mailhost.f5dns.wmata.com. 6     IN      A       10.12.114.120            ###
-################################################################################
-
 grammar DIG_FORWARD {
     token TOP {
         ^
@@ -78,11 +72,6 @@ grammar DIG_FORWARD {
         ( \w || '-' || '.' <!before \s> )+
     }
 }
-
-################################################################################
-### ;; ANSWER SECTION:                                                       ###
-### 230.101.11.10.in-addr.arpa. 259200 IN   PTR     isplc02.wmata.com.       ###
-################################################################################
 
 grammar DIG_REVERSE {
     token TOP {
@@ -251,7 +240,7 @@ sub MAIN (
                         '/usr/bin/dsmadmc',
                         '-SE=' ~ 'A028441' ~ '_' ~ $SERVER_NAME,
                         '-ID=' ~ 'A028441',
-                        '-PA=' ~ KHPH.new(:stash-path('/home/mdevine/.isp/admin/' ~ $SERVER_NAME.uc ~ '/A028441.khph')).expose,
+                        '-PA=' ~ KHPH.new(:stash-path($*HOME ~ '/.isp/admin/' ~ $SERVER_NAME ~ '/A028441.khph')).expose,
                         '-DATAONLY=YES',
                         '-DISPLAYMODE=TABLE',
                         '-TABDELIMITED',
@@ -284,7 +273,7 @@ sub MAIN (
                     '/usr/bin/dsmadmc',
                     '-SE=' ~ 'A028441' ~ '_' ~ $SERVER_NAME,
                     '-ID=' ~ 'A028441',
-                    '-PA=' ~ KHPH.new(:stash-path('/home/mdevine/.isp/admin/' ~ $SERVER_NAME ~ '/A028441.khph')).expose,
+                    '-PA=' ~ KHPH.new(:stash-path($*HOME ~ '/.isp/admin/' ~ $SERVER_NAME ~ '/A028441.khph')).expose,
                     '-DATAONLY=YES',
                     '-DISPLAYMODE=TABLE',
                     '-TABDELIMITED',
@@ -354,7 +343,9 @@ sub MAIN (
           );
 }
 
-multi sub dsmgen(   OS      :$os where $os.Str eq 'AIX',
+multi sub dsmgen(
+                    OS      :$os where $os.Str eq 'AIX',
+                    Str:D   :$SERVER_NAME,
                     Str:D   :$isp-server-name,
                     Str:D   :$isp-server-ip-label,
                     Str:D   :$isp-server-ip-address,
@@ -606,18 +597,22 @@ multi sub dsmgen(
     @commands[1] = 'dsmc query session -optfile="C:\Program Files\Tivoli\TSM\baclient\NODES\\'
                     ~ $ISP-CLIENT-NAME
                     ~ '\dsm.opt"';
-    @commands[2] = 'dsmcutil install scheduler /name:"ISP Client Scheduler '
+    @commands[2] = 'dsmcutil install scheduler /name:"ISP Client Scheduler: '
                     ~ $ISP-CLIENT-NAME
                     ~ '" /node:'
                     ~ $ISP-CLIENT-NAME
-                    ~ ' /password:"jgb6005th" /autostart:no /startnow:no /optfile:"C:\Program Files\Tivoli\TSM\baclient\NODES\\'
+                    ~ ' /password:"'
+                    ~ KHPH.new(:stash-path($*HOME ~ '/.' ~ $*PROGRAM-NAME.IO.basename ~ '/defaults/' ~ $isp-server-name ~ '/NODE/password.khph')).expose
+                    ~ '" /autostart:no /startnow:no /optfile:"C:\Program Files\Tivoli\TSM\baclient\NODES\\'
                     ~ $ISP-CLIENT-NAME
                     ~ '\dsm.opt"';
-    @commands[3] = 'dsmcutil install cad /name:"ISP Client Acceptor '
+    @commands[3] = 'dsmcutil install cad /name:"ISP Client Acceptor: '
                     ~ $ISP-CLIENT-NAME
                     ~ '" /node:'
                     ~ $ISP-CLIENT-NAME
-                    ~ ' /password:"jgb6005th" /autostart:yes /startnow:yes /cadschedname:"ISP Client Schedule '
+                    ~ ' /password:"'
+                    ~ KHPH.new(:stash-path($*HOME ~ '/.' ~ $*PROGRAM-NAME.IO.basename ~ '/defaults/' ~ $isp-server-name ~ '/NODE/password.khph')).expose
+                    ~ '" /autostart:yes /startnow:yes /cadschedname:"ISP Client Schedule: '
                     ~ $ISP-CLIENT-NAME
                     ~ '" /optfile:"C:\Program Files\Tivoli\TSM\baclient\NODES\\'
                     ~ $ISP-CLIENT-NAME
@@ -629,11 +624,3 @@ multi sub dsmgen(
 }
 
 =finish
-
-#   unless $isp-client-if-ip-label || $isp-client-if-ip-address {
-#       colored('No ISP ', 'bold inverse red').print;
-#       colored('client', 'bold yellow on_red').print;
-#       colored(' information supplied!', 'bold inverse red').put;
-#       put $*USAGE;
-#       exit;
-#   }
