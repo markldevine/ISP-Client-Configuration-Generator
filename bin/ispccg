@@ -647,10 +647,10 @@ multi sub dsmgen(
         echo  EXCLUDE '*:\...\*.[Nn][Dd][Ff]' >> "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]\INCLEXCL.ISP"
     )
     EODCODECREATE
-    @commands[1] = 'dsmc query session -optfile="C:\Program Files\Tivoli\TSM\baclient\NODES\\'
+    @commands[1] = '"C:\Program Files\Tivoli\TSM\baclient\dsmc.exe" query session -optfile="C:\Program Files\Tivoli\TSM\baclient\NODES\\'
                     ~ $ISP-CLIENT-NAME
                     ~ '\dsm.opt"';
-    @commands[2] = 'dsmcutil install scheduler /name:"ISP Client Scheduler: '
+    @commands[2] = '"C:\Program Files\Tivoli\TSM\baclient\dsmcutil" install scheduler /name:"ISP Client Scheduler: '
                     ~ $ISP-CLIENT-NAME
                     ~ '" /node:'
                     ~ $ISP-CLIENT-NAME
@@ -659,13 +659,13 @@ multi sub dsmgen(
                     ~ '" /autostart:no /startnow:no /optfile:"C:\Program Files\Tivoli\TSM\baclient\NODES\\'
                     ~ $ISP-CLIENT-NAME
                     ~ '\dsm.opt"';
-    @commands[3] = 'dsmcutil install cad /name:"ISP Client Acceptor: '
+    @commands[3] = '"C:\Program Files\Tivoli\TSM\baclient\dsmcutil" install cad /name:"ISP Client Acceptor: '
                     ~ $ISP-CLIENT-NAME
                     ~ '" /node:'
                     ~ $ISP-CLIENT-NAME
                     ~ ' /password:"'
                     ~ KHPH.new(:stash-path($*HOME ~ '/.' ~ $*PROGRAM-NAME.IO.basename ~ '/defaults/' ~ $isp-server-name ~ '/NODE/password.khph')).expose
-                    ~ '" /autostart:yes /startnow:yes /cadschedname:"ISP Client Schedule: '
+                    ~ '" /autostart:yes /startnow:yes /cadschedname:"ISP Client Scheduler: '
                     ~ $ISP-CLIENT-NAME
                     ~ '" /optfile:"C:\Program Files\Tivoli\TSM\baclient\NODES\\'
                     ~ $ISP-CLIENT-NAME
