@@ -319,10 +319,19 @@ sub MAIN (
     die "Unable to resolve IP information for $SERVER_NAME stanza in '/opt/tivoli/tsm/client/ba/bin/dsm.sys'" unless $resolved-server-ip-label && $resolved-server-ip-address;
 
 #%% WHAT IF $isp-server-if-ip-label || $isp-server-if-ip-address IS OFFERED BY THE USER????
-#   - if $isp-server-if-ip-address, resolve fully
-#       - if $isp-server-if-ip-label was offered as well, canonicalize it & confirm it is correct
-#       - ping $isp-server-if-ip-address
-#           sudo ping -q -c 1 -w 1 -i 1 10.11.101.230
+#   - if $isp-server-if-ip-address
+#       - unless $isp-server-if-ip-address eq $resolved-server-ip-label
+#           - resolve PTR to label
+#           - if $isp-server-if-ip-label was offered as well, canonicalize it & die unless it agrees with DNS
+#           - sudo ping -q -c 1 -w 1 -i 1  $isp-server-if-ip-address or die
+#           - $resolved-server-ip-address = $isp-server-if-ip-address && $resolved-server-ip-address = canonicalized label from this block
+#   - elsif $isp-server-if-ip-label 
+#       - unless $isp-server-if-ip-label eq $resolved-server-ip-label
+#           - resolve A to IP address
+
+# %%%%%%%%%%    what if name is different than A, because it's a CNAME?
+
+#           - if sudo ping -q -c 1 -w 1 -i 1 <IP address from previous step>
 
 #    $proc        = run   
 ##                       '/usr/bin/stdbuf',
