@@ -7,6 +7,7 @@ use Data::Dump::Tree;
 #use Grammar::Debugger;
 #use Grammar::Tracer;
 
+my %isp-servers;
 my @dns-servers;
 my @dns-domains;
 constant @redis-servers = <jgstmgtgate1lpv.wmata.local ctstmgtgate1lpv.wmata.local>;
@@ -15,6 +16,33 @@ my @redis-clis;
 for @redis-servers -> $redis-server {
     my @cmd-string = sprintf("ssh -L 127.0.0.1:6379:%s:6379 %s /usr/bin/redis-cli", $redis-server, $redis-server).split: /\s+/;
     @redis-clis.push: @cmd-string;
+}
+
+for @redis-clis -> @redis-cli {
+    my @rcmd        = flat @redis-cli,
+                      '--raw',
+                      'KEYS',
+                      'eb:isp:servers:*';
+    my $proc        = run   @rcmd, :out, :err;
+    my $out         = $proc.out.slurp(:close);
+    my $err         = $proc.err.slurp(:close);
+    fail 'FAILED: ' ~ @rcmd ~ ":\t" ~ $err if $err;
+    if $out {
+        my @ispssks = $out.chomp.split("\n");
+        die "No ISP server site keys!" unless @ispssks;
+        @rcmd    = flat @redis-cli,
+                   '--raw',
+                   'SUNION',
+                   @ispssks;
+        $proc    = run   @rcmd, :out, :err;
+        $out     = $proc.out.slurp(:close);
+        $err     = $proc.err.slurp(:close);
+        fail 'FAILED: ' ~ @rcmd ~ ":\t" ~ $err if $err;
+        if $out {
+            %isp-servers = $out.chomp.split("\n").map: { $_ => 0 };
+            last;
+        }
+    }
 }
 
 my  $ERRORLOGRETENTION  = '30 D';
@@ -32,7 +60,7 @@ for @redis-clis -> @redis-cli {
     my $proc    = run   @rcmd, :out, :err;
     my $out     = $proc.out.slurp(:close);
     my $err     = $proc.err.slurp(:close);
-    warn 'FAILED: ' ~ @rcmd if $err;
+    fail 'FAILED: ' ~ @rcmd ~ "\:t" ~ $err if $err;
     if $out {
         ($ERRORLOGRETENTION, $INSTRLOGMAX, $SCHEDLOGRETENTION, $TXNBYTELIMIT) =
             $out.split: /\n/;
@@ -47,7 +75,7 @@ for @redis-clis -> @redis-cli {
     my $proc    = run   @rcmd, :out, :err;
     my $out     = $proc.out.slurp(:close);
     my $err     = $proc.err.slurp(:close);
-    fail 'FAILED: ' ~ @rcmd if $err;
+    fail 'FAILED: ' ~ @rcmd ~ ":\t" ~ $err if $err;
     if $out {
         @dns-domains = $out.chomp.split: "\n";
         last;
@@ -61,7 +89,7 @@ for @redis-clis -> @redis-cli {
     my $proc    = run   @rcmd, :out, :err;
     my $out     = $proc.out.slurp(:close);
     my $err     = $proc.err.slurp(:close);
-    fail 'FAILED: ' ~ @rcmd if $err;
+    fail 'FAILED: ' ~ @rcmd ~ ":\t" ~ $err if $err;
     if $out {
         @dns-servers = $out.chomp.split: "\n";
         last;
@@ -256,6 +284,10 @@ sub MAIN (
 #   Sort out the ISP server info
 
     my $SERVER_NAME = $isp-server-name.uc;
+    unless %isp-servers{$SERVER_NAME}:exists {
+        $*ERR.put: colored('Unrecognized $isp-server-name <' ~ $isp-server-name ~ '> specified!', 'red');
+        die colored('Either fix your --$isp-server-name=<value> or update Redis eb:isp:servers:*', 'red');
+    }
     die "Set up '/opt/tivoli/tsm/client/ba/bin/dsm.sys' & /usr/bin/dsmadmc before using this script." unless '/opt/tivoli/tsm/client/ba/bin/dsm.sys'.IO.path:s;
     my @dsm-sys     = slurp('/opt/tivoli/tsm/client/ba/bin/dsm.sys').lines;
     my %stanzas;
@@ -307,6 +339,8 @@ sub MAIN (
 #    my $err         = $proc.err.slurp(:close);
 #    my $out         = $proc.out.slurp(:close);
 #    put 'Note: dsm.sys SERVERNAME stanza <' ~ $SERVER_NAME ~ '> ≠ <' ~ $out.chomp ~ "> ISP Server's SERVER_NAME" unless $SERVER_NAME eq $out.chomp;
+
+#   Sort out the ISP client (NODE) info
 
     my $NODE_NAME   = $isp-node-name.uc;
     my $resolved-client-ip-address;
