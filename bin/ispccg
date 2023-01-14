@@ -318,6 +318,12 @@ sub MAIN (
     }
     die "Unable to resolve IP information for $SERVER_NAME stanza in '/opt/tivoli/tsm/client/ba/bin/dsm.sys'" unless $resolved-server-ip-label && $resolved-server-ip-address;
 
+#%% WHAT IF $isp-server-if-ip-label || $isp-server-if-ip-address IS OFFERED BY THE USER????
+#   - if $isp-server-if-ip-address, resolve fully
+#       - if $isp-server-if-ip-label was offered as well, canonicalize it & confirm it is correct
+#       - ping $isp-server-if-ip-address
+#           sudo ping -q -c 1 -w 1 -i 1 10.11.101.230
+
 #    $proc        = run   
 ##                       '/usr/bin/stdbuf',
 ##                       '-i0',
