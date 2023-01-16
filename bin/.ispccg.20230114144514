@@ -5,7 +5,7 @@ use Terminal::ANSIColor;
 use Prettier::Table;
 use Data::Dump::Tree;
 #use Grammar::Debugger;
-use Grammar::Tracer;
+#use Grammar::Tracer;
 
 my %isp-servers;
 my @dns-servers;
@@ -105,7 +105,6 @@ grammar DIG_FORWARD {
     token TOP {
         ^
         <record>+
-        $
     }
     token record {
         <name>
@@ -211,8 +210,7 @@ sub lookup-forward (Str:D $ip-label!) {
             my $out     = $proc.out.slurp(:close);
             my $err     = $proc.err.slurp(:close);
             my $match   = DIG_FORWARD.parse($out);
-dd $match;
-            return $match<record>[0]<ip-addr>.Str with $match;
+            return $match<ip-addr>.Str with $match;
         }
     }
     fail colored("lookup-forward '$ip-label' failed!", 'red on_black');
