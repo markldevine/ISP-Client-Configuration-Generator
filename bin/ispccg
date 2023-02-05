@@ -5,7 +5,7 @@ use Terminal::ANSIColor;
 use Prettier::Table;
 use Data::Dump::Tree;
 #use Grammar::Debugger;
-use Grammar::Tracer;
+#use Grammar::Tracer;
 
 my %isp-servers;
 my @dns-servers;
@@ -211,7 +211,6 @@ sub lookup-forward (Str:D $ip-label!) {
             my $out     = $proc.out.slurp(:close);
             my $err     = $proc.err.slurp(:close);
             my $match   = DIG_FORWARD.parse($out);
-dd $match;
             return $match<record>[0]<ip-addr>.Str with $match;
         }
     }
@@ -378,11 +377,13 @@ sub MAIN (
 #   Sort out the ISP client (NODE) info
 
     my $NODE_NAME   = $isp-node-name.uc;
+    my $try-label   = $NODE_NAME;
+    $try-label      = $isp-node-if-ip-label with $isp-node-if-ip-label;
     my $resolved-client-ip-address;
     my $resolved-client-ip-label;
     try {
-        $resolved-client-ip-address = lookup-forward($NODE_NAME);
-        $resolved-client-ip-label   = lookup-reverse($resolved-client-ip-address, :expectation($NODE_NAME));
+        $resolved-client-ip-address = lookup-forward($try-label);
+        $resolved-client-ip-label   = lookup-reverse($resolved-client-ip-address, :expectation($try-label));
         CATCH {
             warn "Unable to resolve IP information for $NODE_NAME" unless $resolved-client-ip-label && $resolved-client-ip-address;
         }
@@ -447,6 +448,8 @@ sub MAIN (
                 ~ ' '
                 ~ 'DOMAIN=%%%'
                 ~ ' '
+                ~ 'USER=NONE'
+                ~ ' '
                 ~ 'MAXNUMMP=1'
                 ~ ' '
                 ~ 'CONTACT="L%%%, F%%%%"'
@@ -496,6 +499,7 @@ SERVERNAME {$isp-client-name.uc}_{$isp-server-name.uc}
 *   POSTSCHEDULECMD         /var/isp/ba/{$isp-client-name.uc}/postsched.sh
     PASSWORDACCESS          GENERATE
     PASSWORDDIR             /var/isp/ba/{$isp-client-name.uc}/passwd
+    QUERYSCHEDPERIOD        4
     RESOURCEUTILIZATION     1
     SCHEDLOGNAME            /var/isp/ba/{$isp-client-name.uc}/dsmsched.log
     SCHEDLOGRETENTION       {$SCHEDLOGRETENTION}
@@ -520,10 +524,10 @@ chown root:system /var/isp/ba/{$isp-client-name.uc}
 mkdir -p /var/isp/ba/{$isp-client-name.uc}/DEDUPCACHE
 chmod 2770 /var/isp/ba/{$isp-client-name.uc}/DEDUPCACHE
 chown root:system /var/isp/ba/{$isp-client-name.uc}/DEDUPCACHE
-mkdir -p /var/isp/ba/{$isp-client-name.uc}/PASSWD
-chmod 0700 /var/isp/ba/{$isp-client-name.uc}/PASSWD
-chmod g-s /var/isp/ba/{$isp-client-name.uc}/PASSWD
-chown root:system /var/isp/ba/{$isp-client-name.uc}/PASSWD
+mkdir -p /var/isp/ba/{$isp-client-name.uc}/passwd
+chmod 0700 /var/isp/ba/{$isp-client-name.uc}/passwd
+chmod g-s /var/isp/ba/{$isp-client-name.uc}/passwd
+chown root:system /var/isp/ba/{$isp-client-name.uc}/passwd
 touch /var/isp/ba/{$isp-client-name.uc}/dsmerror.log
 chmod 660 /var/isp/ba/{$isp-client-name.uc}/dsmerror.log
 chown root:system /var/isp/ba/{$isp-client-name.uc}/dsmerror.log
@@ -567,90 +571,102 @@ multi sub dsmgen(
                     Str:D   :$isp-client-ip-label,
                     Str:D   :$isp-client-ip-address,
                 ) {
-my @commands;
-@commands[0] = qq:to/EODCODECREATE/;
-cat > /opt/tivoli/tsm/client/ba/bin64/dsm.sys <<EODSMSYSCREATE
-SERVERNAME {$isp-client-name.uc}_{$isp-server-name.uc}
-    COMMMETHOD              TCPIP
-    COMPRESSION             YES
-    DEDUPCACHEPATH          /var/isp/ba/{$isp-client-name.uc}/DEDUPCACHE
-    DEDUPCACHESIZE          2048
-    DEDUPLICATION           YES
-    ENABLEINSTRUMENTATION   YES
-    ERRORLOGNAME            /var/isp/ba/{$isp-client-name.uc}/dsmerror.log
-    ERRORLOGRETENTION       $ERRORLOGRETENTION
-    INCLEXCL                /var/isp/ba/{$isp-client-name.uc}/INCLEXCL.ISP
-    INSTRLOGMAX             {$INSTRLOGMAX}
-    INSTRLOGNAME            /var/isp/ba/{$isp-client-name.uc}/dsminstr.log
-    MANAGEDSERVICES         SCHEDULE WEBCLIENT
-    NODENAME                {$isp-client-name.uc}
-*   PRESCHEDULECMD          /var/isp/ba/{$isp-client-name.uc}/presched.sh
-*   POSTSCHEDULECMD         /var/isp/ba/{$isp-client-name.uc}/postsched.sh
-    PASSWORDACCESS          GENERATE
-    PASSWORDDIR             /var/isp/ba/{$isp-client-name.uc}/passwd
-    RESOURCEUTILIZATION     1
-    SCHEDLOGNAME            /var/isp/ba/{$isp-client-name.uc}/dsmsched.log
-    SCHEDLOGRETENTION       {$SCHEDLOGRETENTION}
-    SHMPORT                 1510
-    TCPCADADDRESS           {$isp-client-ip-label}
-*   TCPCADADDRESS           {$isp-client-ip-address}
-    TCPSERVERADDRESS        {$isp-server-ip-label}
-*   TCPSERVERADDRESS        {$isp-server-ip-address}
-    TXNBYTELIMIT            {$TXNBYTELIMIT}
-EODSMSYSCREATE
-chmod 644 /opt/tivoli/tsm/client/ba/bin64/dsm.sys
-chown root:root /opt/tivoli/tsm/client/ba/bin64/dsm.sys
-mkdir -p /var/isp
-chmod 2750 /var/isp
-chown root:root /var/isp
-mkdir -p /var/isp/ba
-chmod 2750 /var/isp/ba
-chown root:root /var/isp/ba
-mkdir -p /var/isp/ba/{$isp-client-name.uc}
-chmod 2770 /var/isp/ba/{$isp-client-name.uc}
-chown root:root /var/isp/ba/{$isp-client-name.uc}
-mkdir -p /var/isp/ba/{$isp-client-name.uc}/DEDUPCACHE
-chmod 2770 /var/isp/ba/{$isp-client-name.uc}/DEDUPCACHE
-chown root:root /var/isp/ba/{$isp-client-name.uc}/DEDUPCACHE
-mkdir -p /var/isp/ba/{$isp-client-name.uc}/PASSWD
-chmod 0700 /var/isp/ba/{$isp-client-name.uc}/PASSWD
-chmod g-s /var/isp/ba/{$isp-client-name.uc}/PASSWD
-chown root:root /var/isp/ba/{$isp-client-name.uc}/PASSWD
-touch /var/isp/ba/{$isp-client-name.uc}/dsmerror.log
-chmod 660 /var/isp/ba/{$isp-client-name.uc}/dsmerror.log
-chown root:root /var/isp/ba/{$isp-client-name.uc}/dsmerror.log
-touch /var/isp/ba/{$isp-client-name.uc}/dsminstr.log
-chmod 660 /var/isp/ba/{$isp-client-name.uc}/dsminstr.log
-chown root:root /var/isp/ba/{$isp-client-name.uc}/dsminstr.log
-touch /var/isp/ba/{$isp-client-name.uc}/dsminstr.log.lock
-chmod 660 /var/isp/ba/{$isp-client-name.uc}/dsminstr.log.lock
-chown root:root /var/isp/ba/{$isp-client-name.uc}/dsminstr.log.lock
-if [ ! -f /var/isp/ba/{$isp-client-name.uc}/presched.sh ] ; then echo -e '#!/bin/sh\\nexit 0' > /var/isp/ba/{$isp-client-name.uc}/presched.sh ; fi
-chmod 740 /var/isp/ba/{$isp-client-name.uc}/presched.sh
-chown root:root /var/isp/ba/{$isp-client-name.uc}/presched.sh
-if [ ! -f /var/isp/ba/{$isp-client-name.uc}/postsched.sh ] ; then echo -e '#!/bin/sh\\nexit 0' > /var/isp/ba/{$isp-client-name.uc}/postsched.sh ; fi
-chmod 740 /var/isp/ba/{$isp-client-name.uc}/postsched.sh
-chown root:root /var/isp/ba/{$isp-client-name.uc}/postsched.sh
-touch /var/isp/ba/{$isp-client-name}/INCLEXCL.ISP
-chmod 640 /var/isp/ba/{$isp-client-name.uc}/INCLEXCL.ISP
-chown root:root /var/isp/ba/{$isp-client-name.uc}/INCLEXCL.ISP
-touch /var/isp/ba/{$isp-client-name.uc}/dsmsched.log
-chmod 640 /var/isp/ba/{$isp-client-name.uc}/dsmsched.log
-chown root:root /var/isp/ba/{$isp-client-name.uc}/dsmsched.log
-touch /var/isp/ba/{$isp-client-name.uc}/dsmwebcl.log
-chmod 640 /var/isp/ba/{$isp-client-name.uc}/dsmwebcl.log
-chown root:root /var/isp/ba/{$isp-client-name.uc}/dsmwebcl.log
-echo SERVERNAME {$isp-client-name.uc}_{$isp-server-name.uc} > /opt/tivoli/tsm/client/ba/bin64/dsm.opt
-chmod 644 /opt/tivoli/tsm/client/ba/bin64/dsm.opt
-chown root:root /opt/tivoli/tsm/client/ba/bin64/dsm.opt
-EODCODECREATE
-@commands[1] = 'dsmc query session';
-@commands[2] = 'systemctl daemon-reload';
-@commands[3] = 'systemctl enable --now dsmcad.service';
-colored(@commands[0], 'cyan').print;
-colored(@commands[1], 'white on_cyan').put;
-colored(@commands[2], 'cyan').put;
-colored(@commands[3], 'cyan').put;
+    my $dsm-opt-file-name-ext   = '';
+    $dsm-opt-file-name-ext      = '_' ~ $isp-client-name unless $isp-client-ip-label ~~ m:i/ ^ $isp-client-name /;
+    my @commands;
+    @commands[0] = qq:to/EODCODECREATE/;
+    cat >> /opt/tivoli/tsm/client/ba/bin/dsm.sys <<EODSMSYSCREATE
+
+    SERVERNAME {$isp-client-name.uc}_{$isp-server-name.uc}
+        COMMMETHOD              TCPIP
+        COMPRESSION             YES
+        DEDUPCACHEPATH          /var/isp/ba/{$isp-client-name.uc}/DEDUPCACHE
+        DEDUPCACHESIZE          2048
+        DEDUPLICATION           YES
+        ENABLEINSTRUMENTATION   YES
+        ERRORLOGNAME            /var/isp/ba/{$isp-client-name.uc}/dsmerror.log
+        ERRORLOGRETENTION       $ERRORLOGRETENTION
+        HTTPPORT                1581
+        INCLEXCL                /var/isp/ba/{$isp-client-name.uc}/INCLEXCL.ISP
+        INSTRLOGMAX             {$INSTRLOGMAX}
+        INSTRLOGNAME            /var/isp/ba/{$isp-client-name.uc}/dsminstr.log
+        MANAGEDSERVICES         SCHEDULE WEBCLIENT
+        NODENAME                {$isp-client-name.uc}
+    *   PRESCHEDULECMD          /var/isp/ba/{$isp-client-name.uc}/presched.sh
+    *   POSTSCHEDULECMD         /var/isp/ba/{$isp-client-name.uc}/postsched.sh
+        PASSWORDACCESS          GENERATE
+        PASSWORDDIR             /var/isp/ba/{$isp-client-name.uc}/passwd
+        QUERYSCHEDPERIOD        4
+        RESOURCEUTILIZATION     1
+        SCHEDLOGNAME            /var/isp/ba/{$isp-client-name.uc}/dsmsched.log
+        SCHEDLOGRETENTION       {$SCHEDLOGRETENTION}
+        TCPCADADDRESS           {$isp-client-ip-label}
+    *   TCPCADADDRESS           {$isp-client-ip-address}
+        TCPSERVERADDRESS        {$isp-server-ip-label}
+    *   TCPSERVERADDRESS        {$isp-server-ip-address}
+        TXNBYTELIMIT            {$TXNBYTELIMIT}
+        WEBPORTS                1582 1581
+    EODSMSYSCREATE
+    chmod 644 /opt/tivoli/tsm/client/ba/bin/dsm.sys
+    chown root:DCI_GPO_BACKUPADMINS_DL_SG /opt/tivoli/tsm/client/ba/bin/dsm.sys
+    mkdir -p /var/isp
+    chmod 2750 /var/isp
+    chown root:DCI_GPO_BACKUPADMINS_DL_SG /var/isp
+    mkdir -p /var/isp/ba
+    chmod 2750 /var/isp/ba
+    chown root:DCI_GPO_BACKUPADMINS_DL_SG /var/isp/ba
+    mkdir -p /var/isp/ba/{$isp-client-name.uc}
+    chmod 2770 /var/isp/ba/{$isp-client-name.uc}
+    chown root:DCI_GPO_BACKUPADMINS_DL_SG /var/isp/ba/{$isp-client-name.uc}
+    mkdir -p /var/isp/ba/{$isp-client-name.uc}/DEDUPCACHE
+    chmod 2770 /var/isp/ba/{$isp-client-name.uc}/DEDUPCACHE
+    chown root:DCI_GPO_BACKUPADMINS_DL_SG /var/isp/ba/{$isp-client-name.uc}/DEDUPCACHE
+    mkdir -p /var/isp/ba/{$isp-client-name.uc}/passwd
+    chmod 0700 /var/isp/ba/{$isp-client-name.uc}/passwd
+    chmod g-s /var/isp/ba/{$isp-client-name.uc}/passwd
+    chown root:DCI_GPO_BACKUPADMINS_DL_SG /var/isp/ba/{$isp-client-name.uc}/passwd
+    touch /var/isp/ba/{$isp-client-name.uc}/dsmerror.log
+    chmod 660 /var/isp/ba/{$isp-client-name.uc}/dsmerror.log
+    chown root:DCI_GPO_BACKUPADMINS_DL_SG /var/isp/ba/{$isp-client-name.uc}/dsmerror.log
+    touch /var/isp/ba/{$isp-client-name.uc}/dsminstr.log
+    chmod 660 /var/isp/ba/{$isp-client-name.uc}/dsminstr.log
+    chown root:DCI_GPO_BACKUPADMINS_DL_SG /var/isp/ba/{$isp-client-name.uc}/dsminstr.log
+    touch /var/isp/ba/{$isp-client-name.uc}/dsminstr.log.lock
+    chmod 660 /var/isp/ba/{$isp-client-name.uc}/dsminstr.log.lock
+    chown root:DCI_GPO_BACKUPADMINS_DL_SG /var/isp/ba/{$isp-client-name.uc}/dsminstr.log.lock
+    if [ ! -f /var/isp/ba/{$isp-client-name.uc}/presched.sh ] ; then echo -e '#!/bin/sh\\nexit 0' > /var/isp/ba/{$isp-client-name.uc}/presched.sh ; fi
+    chmod 740 /var/isp/ba/{$isp-client-name.uc}/presched.sh
+    chown root:DCI_GPO_BACKUPADMINS_DL_SG /var/isp/ba/{$isp-client-name.uc}/presched.sh
+    if [ ! -f /var/isp/ba/{$isp-client-name.uc}/postsched.sh ] ; then echo -e '#!/bin/sh\\nexit 0' > /var/isp/ba/{$isp-client-name.uc}/postsched.sh ; fi
+    chmod 740 /var/isp/ba/{$isp-client-name.uc}/postsched.sh
+    chown root:DCI_GPO_BACKUPADMINS_DL_SG /var/isp/ba/{$isp-client-name.uc}/postsched.sh
+    touch /var/isp/ba/{$isp-client-name}/INCLEXCL.ISP
+    chmod 640 /var/isp/ba/{$isp-client-name.uc}/INCLEXCL.ISP
+    chown root:DCI_GPO_BACKUPADMINS_DL_SG /var/isp/ba/{$isp-client-name.uc}/INCLEXCL.ISP
+    touch /var/isp/ba/{$isp-client-name.uc}/dsmsched.log
+    chmod 640 /var/isp/ba/{$isp-client-name.uc}/dsmsched.log
+    chown root:DCI_GPO_BACKUPADMINS_DL_SG /var/isp/ba/{$isp-client-name.uc}/dsmsched.log
+    touch /var/isp/ba/{$isp-client-name.uc}/dsmwebcl.log
+    chmod 640 /var/isp/ba/{$isp-client-name.uc}/dsmwebcl.log
+    chown root:DCI_GPO_BACKUPADMINS_DL_SG /var/isp/ba/{$isp-client-name.uc}/dsmwebcl.log
+    echo SERVERNAME {$isp-client-name.uc}_{$isp-server-name.uc} > /opt/tivoli/tsm/client/ba/bin/dsm{$dsm-opt-file-name-ext}.opt
+    chmod 644 /opt/tivoli/tsm/client/ba/bin/dsm{$dsm-opt-file-name-ext}.opt
+    chown root:DCI_GPO_BACKUPADMINS_DL_SG /opt/tivoli/tsm/client/ba/bin/dsm{$dsm-opt-file-name-ext}.opt
+    EODCODECREATE
+    @commands[1] = 'dsmc query session' ~ ' -optfile=/opt/tivoli/tsm/client/ba/bin/dsm' ~ $dsm-opt-file-name-ext ~ '.opt';
+    if $dsm-opt-file-name-ext {
+        @commands.push: "sed -e '/^### END INIT INFO\$/a \\\\nexport DSM_CONFIG=\/opt\/tivoli\/tsm\/client\/ba\/bin\/dsm{$dsm-opt-file-name-ext}.opt' /opt/tivoli/tsm/client/ba/bin/rc.dsmcad > /etc/init.d/dsmcad{$dsm-opt-file-name-ext}";
+        @commands.push: qq|sed -i -e 's/^      daemon \$DSMCAD_BIN/      daemon \$DSMCAD_BIN -optfile=\$\{DSM_CONFIG\}/' /etc/init.d/dsmcad{$dsm-opt-file-name-ext}|;
+        @commands.push: "chmod 755 /etc/init.d/dsmcad{$dsm-opt-file-name-ext}";
+    }
+    @commands.push: 'systemctl daemon-reload';
+    @commands.push: "systemctl enable dsmcad{$dsm-opt-file-name-ext}";
+    @commands.push: "systemctl start dsmcad{$dsm-opt-file-name-ext}";
+    colored(@commands[0], 'cyan').print;
+    colored(@commands[1], 'white on_cyan').put;
+    for 2 .. @commands.elems - 1 {
+        colored(@commands[$_], 'cyan').put;
+    }
 }
 
 multi sub dsmgen(
