@@ -1,0 +1,63 @@
+#!/usr/bin/env raku
+
+my @nodes       = <
+                    C_DCI_UNIX_SUDO C_EAHDP C_EA_SOADEV1 C_EA_SOADEV2 C_EA_SOADEV3 C_EA_SOADEV4 C_GIS_DEV C_HYPAPPESS
+                    C_HYPAPPOBI C_HYP_RES C_HYP_TRN C_MAXQAU03 C_NIMCTF C_NR_HYPDBESS C_NR_HYPWSFNDDEV C_NR_SOA C_NR_UATSOA
+                    C_NR_UATSOA1 C_NR_UATSOA2 C_PS_ELM_DEV C_SOA_SHARE C_TSMDBBKUP P_DCI_UNIX_SUDO P_FAREGATE_AFC
+                    P_FAREGATE_ANSIBLE P_FAREGATE_DEV P_FAREGATE_QA P_FCS_APP P_FCS_APPDATA P_FCS_MSR_DEV P_FCS_WAS P_FCS_WEB
+                    P_GISPROD P_HYP_ESSBASEDB P_HYP_QAPLNESS P_NIMJGB P_NR_SOA P_OEM P_PS_ELM_PROD P_PS_FIN_DEVQA P_PS_HCM_DEV
+                    P_PS_HCM_PROD P_PS_HYPDEV1 P_PS_HYP_PROD1 P_PS_HYP_PROD2 P_PS_SHARE_PROD P_REP_HYPBI P_REP_HYPCLUS
+                    P_REP_HYPESS P_REP_HYPFND P_REP_MXWEBAPP P_REP_SOA P_SANNAV P_SOA_ORACLESHARE P_SOA_PROD P_SOA_SHARE P_TENABLE_PROD
+                  >;
+
+for @nodes <-> $node {
+    $node   = '_' ~ $node;
+    my $fh  = open '/home/mdevine/nfs/init.d/dsmcad' ~ $node ~ '.service', :w;
+    $fh.put:    '[Unit]';
+    $fh.put:    'Description="IBM SP Client dsmcad' ~ $node ~ ' service."';
+    $fh.put:    'After=local-fs.target network-online.target' ~ "\n";
+    $fh.put:    '[Service]';
+    $fh.put:    'Type=forking';
+    $fh.put:    'GuessMainPID=no';
+    $fh.put:    'Environment="DSM_CONFIG=/opt/tivoli/tsm/client/ba/bin/dsm' ~ $node ~ '.opt"';
+    $fh.put:    'Environment="JAVA_HOME=/opt/tivoli/tsm/tdpvmware/common/jre/jre"';
+    $fh.put:    'Environment="LD_LIBRARY_PATH=/opt/tivoli/tsm/client/ba/bin:/opt/tivoli/tsm/tdpvmware/common/jre/jre/bin/classic"';
+    $fh.put:    'Environment="PATH=/opt/tivoli/tsm/tdpvmware/common/jre/jre/bin:/sbin:/usr/sbin:/usr/local/sbin:/root/bin:/usr/local/bin:/usr/bin:/bin"';
+    $fh.put:    'Environment="LANG=en_US"';
+    $fh.put:    'Environment="LC_ALL=en_US"';
+    $fh.put:    'ExecStart=/usr/bin/dsmcad -optfile=/opt/tivoli/tsm/client/ba/bin/dsm' ~ $node ~ '.opt';
+    $fh.print:  'ExecStopPost=';
+    $fh.print:  "/bin/bash -c 'SEARCH=";
+    $fh.print:  '"/usr/bin/dsmcad -optfile=/opt/tivoli/tsm/client/ba/bin/dsm';
+    $fh.print:  $node ~ '.opt"; CHECK=$(ps -eo args | grep -- "${SEARCH}" | grep -v grep); ';
+    $fh.print:  'let i=0; while [[ -n "${CHECK}" && ($i -lt 10) ]]; do let i++; echo $i; sleep 1; CHECK=$(ps -eo args | grep -- "$SEARCH" | grep -v grep); ';
+    $fh.put:    "done'";
+    $fh.put:    'Restart=on-failure' ~ "\n";
+    $fh.put:    '[Install]';
+    $fh.put:    'WantedBy=multi-user.target';
+    $fh.close;
+}
+
+=finish
+
+#/opt/tivoli/tsm/client/ba/bin/dsmcad.service
+#   [Unit]
+#   Description="IBM SP Client dsmcad service."
+#   After=local-fs.target network-online.target
+#
+#   [Service]
+#   Type=forking
+#   GuessMainPID=no
+#   Environment="DSM_LOG=/opt/tivoli/tsm/client/ba/bin"
+#   Environment="JAVA_HOME=/opt/tivoli/tsm/tdpvmware/common/jre/jre"
+#   Environment="LD_LIBRARY_PATH=/opt/tivoli/tsm/client/ba/bin:/opt/tivoli/tsm/tdpvmware/common/jre/jre/bin/classic"
+#   Environment="PATH=/opt/tivoli/tsm/tdpvmware/common/jre/jre/bin:/sbin:/usr/sbin:/usr/local/sbin:/root/bin:/usr/local/bin:/usr/bin:/bin"
+#   Environment="LANG=en_US"
+#   Environment="LC_ALL=en_US"
+#   ExecStart=/usr/bin/dsmcad
+#   ExecStopPost=/bin/bash -c 'let i=0; while [[ (-n "$(ps -eo comm | grep dsmcad)") && ($i -le 10) ]]; do let i++; sleep 1; done'
+#   Restart=on-failure
+#
+#   [Install]
+#   WantedBy=multi-user.target
+
