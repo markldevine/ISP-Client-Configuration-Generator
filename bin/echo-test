@@ -1,0 +1,19 @@
+[Unit]
+Description="IBM SP Client dsmcad_C_DCI_UNIX_SUDO service."
+After=local-fs.target network-online.target
+
+[Service]
+Type=forking
+GuessMainPID=no
+Environment="DSM_CONFIG=/opt/tivoli/tsm/client/ba/bin/dsm_C_DCI_UNIX_SUDO.opt"
+Environment="JAVA_HOME=/opt/tivoli/tsm/tdpvmware/common/jre/jre"
+Environment="LD_LIBRARY_PATH=/opt/tivoli/tsm/client/ba/bin:/opt/tivoli/tsm/tdpvmware/common/jre/jre/bin/classic"
+Environment="PATH=/opt/tivoli/tsm/tdpvmware/common/jre/jre/bin:/sbin:/usr/sbin:/usr/local/sbin:/root/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="LANG=en_US"
+Environment="LC_ALL=en_US"
+ExecStart=/usr/bin/dsmcad -optfile=/opt/tivoli/tsm/client/ba/bin/dsm_C_DCI_UNIX_SUDO.opt
+ExecStopPost=/bin/bash -c 'SEARCH="/usr/bin/dsmcad -optfile=/opt/tivoli/tsm/client/ba/bin/dsm_C_DCI_UNIX_SUDO.opt"; CHECK=$(ps -eo args | grep -- "${SEARCH}" | grep -v grep); let i=0; while [[ -n "${CHECK}" && ($i -lt 10) ]]; do let i++; echo $i; sleep 1; CHECK=$(ps -eo args | grep -- "$SEARCH" | grep -v grep); done'
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

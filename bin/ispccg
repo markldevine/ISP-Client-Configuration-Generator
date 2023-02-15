@@ -572,7 +572,13 @@ multi sub dsmgen(
                     Str:D   :$isp-client-ip-address,
                 ) {
     my $dsm-opt-file-name-ext   = '';
-    $dsm-opt-file-name-ext      = '_' ~ $isp-client-name unless $isp-client-ip-label ~~ m:i/ ^ $isp-client-name /;
+    my $dsmcad-draft-path       = "/var/isp/ba/{$isp-client-name.uc}/dsmcad";
+    unless $isp-client-ip-label ~~ m:i/ ^ $isp-client-name / {
+        $dsm-opt-file-name-ext  = '_' ~ $isp-client-name;
+        $dsmcad-draft-path      = $dsmcad-draft-path ~ $dsm-opt-file-name-ext;
+    }
+    $dsmcad-draft-path          = $dsmcad-draft-path ~ '.service';
+die '$dsmcad-draft-path = <' ~ $dsmcad-draft-path ~ '>';
     my @commands;
     @commands[0] = qq:to/EODCODECREATE/;
     cat >> /opt/tivoli/tsm/client/ba/bin/dsm.sys <<EODSMSYSCREATE
@@ -652,16 +658,30 @@ multi sub dsmgen(
     echo SERVERNAME {$isp-client-name.uc}_{$isp-server-name.uc} > /opt/tivoli/tsm/client/ba/bin/dsm{$dsm-opt-file-name-ext}.opt
     chmod 644 /opt/tivoli/tsm/client/ba/bin/dsm{$dsm-opt-file-name-ext}.opt
     chown root:DCI_GPO_BACKUPADMINS_DL_SG /opt/tivoli/tsm/client/ba/bin/dsm{$dsm-opt-file-name-ext}.opt
-    EODCODECREATE
+    echo [Unit] > {$dsmcad-draft-path}
+    echo Description=\"IBM SP Client dsmcad_C_DCI_UNIX_SUDO service.\" >> {$dsmcad-draft-path}
+    echo After=local-fs.target network-online.target >> {$dsmcad-draft-path}
+    echo >> {$dsmcad-draft-path}
+    echo [Service] >> {$dsmcad-draft-path}
+    echo Type=forking >> {$dsmcad-draft-path}
+    echo GuessMainPID=no >> {$dsmcad-draft-path}
+    echo Environment=\"DSM_CONFIG=/opt/tivoli/tsm/client/ba/bin/dsm_C_DCI_UNIX_SUDO.opt\" >> {$dsmcad-draft-path}
+    echo Environment=\"JAVA_HOME=/opt/tivoli/tsm/tdpvmware/common/jre/jre\" >> {$dsmcad-draft-path}
+    echo Environment=\"LD_LIBRARY_PATH=/opt/tivoli/tsm/client/ba/bin:/opt/tivoli/tsm/tdpvmware/common/jre/jre/bin/classic\" >> {$dsmcad-draft-path}
+    echo Environment=\"PATH=/opt/tivoli/tsm/tdpvmware/common/jre/jre/bin:/sbin:/usr/sbin:/usr/local/sbin:/root/bin:/usr/local/bin:/usr/bin:/bin\" >> {$dsmcad-draft-path}
+    echo Environment=\"LANG=en_US\" >> {$dsmcad-draft-path}
+    echo Environment=\"LC_ALL=en_US\" >> {$dsmcad-draft-path}
+    echo ExecStart=/usr/bin/dsmcad -optfile=/opt/tivoli/tsm/client/ba/bin/dsm_C_DCI_UNIX_SUDO.opt >> {$dsmcad-draft-path}
+    echo ExecStopPost=/bin/bash -c \''SEARCH="/usr/bin/dsmcad -optfile=/opt/tivoli/tsm/client/ba/bin/dsm_C_DCI_UNIX_SUDO.opt"; CHECK=\q[$](ps -eo args | grep -- "\q[${SEARCH}]" | grep -v grep); let i=0; while [[ -n "\q[${CHECK}]" && (\q[$i] -lt 10) ]]; do let i++; echo \q[$i]; sleep 1; CHECK=\q[$](ps -eo args | grep -- "\q[$SEARCH]" | grep -v grep); done'\' >> {$dsmcad-draft-path}
+    echo Restart=on-failure >> {$dsmcad-draft-path}
+    echo >> {$dsmcad-draft-path}
+    echo [Install] >> {$dsmcad-draft-path}
+    echo WantedBy=multi-user.target >> {$dsmcad-draft-path}
+    chown 644 {$dsmcad-draft-path}
+    cp {$dsmcad-draft-path} /etc/systemd/system/
+    chcon unconfined_u:object_r:systemd_unit_file_t:s0 /etc/systemd/system/
+EODCODECREATE
     @commands[1] = 'dsmc query session' ~ ' -optfile=/opt/tivoli/tsm/client/ba/bin/dsm' ~ $dsm-opt-file-name-ext ~ '.opt';
-    if $dsm-opt-file-name-ext {
-        @commands.push: "sed -e '/^### END INIT INFO\$/a \\\\nexport DSM_CONFIG=\/opt\/tivoli\/tsm\/client\/ba\/bin\/dsm{$dsm-opt-file-name-ext}.opt' /opt/tivoli/tsm/client/ba/bin/rc.dsmcad > /etc/init.d/dsmcad{$dsm-opt-file-name-ext}";
-        @commands.push: qq|sed -i -e 's/^      daemon \$DSMCAD_BIN/      daemon \$DSMCAD_BIN -optfile=\$\{DSM_CONFIG\}/' /etc/init.d/dsmcad{$dsm-opt-file-name-ext}|;
-        @commands.push: "chmod 755 /etc/init.d/dsmcad{$dsm-opt-file-name-ext}";
-    }
-
-#chcon unconfined_u:object_r:systemd_unit_file_t:s0
-
     @commands.push: 'systemctl daemon-reload';
     @commands.push: "systemctl enable dsmcad{$dsm-opt-file-name-ext}";
     @commands.push: "systemctl start dsmcad{$dsm-opt-file-name-ext}";
@@ -765,3 +785,11 @@ multi sub dsmgen(
 }
 
 =finish
+
+#   @commands[1] = 'dsmc query session' ~ ' -optfile=/opt/tivoli/tsm/client/ba/bin/dsm' ~ $dsm-opt-file-name-ext ~ '.opt';
+#   if $dsm-opt-file-name-ext {
+#       @commands.push: "sed -e '/^### END INIT INFO\$/a \\\\nexport DSM_CONFIG=\/opt\/tivoli\/tsm\/client\/ba\/bin\/dsm{$dsm-opt-file-name-ext}.opt' /opt/tivoli/tsm/client/ba/bin/rc.dsmcad > /etc/init.d/dsmcad{$dsm-opt-file-name-ext}";
+#       @commands.push: qq|sed -i -e 's/^      daemon \$DSMCAD_BIN/      daemon \$DSMCAD_BIN -optfile=\$\{DSM_CONFIG\}/' /etc/init.d/dsmcad{$dsm-opt-file-name-ext}|;
+#       @commands.push: "chmod 755 /etc/init.d/dsmcad{$dsm-opt-file-name-ext}";
+#   }
+
