@@ -12,7 +12,7 @@ my @nodes       = <
 
 for @nodes <-> $node {
     $node   = '_' ~ $node;
-    my $fh  = open '/home/mdevine/nfs/init.d/dsmcad' ~ $node ~ '.service', :w;
+    my $fh  = open '/home/mdevine/nfs/systemd/dsmcad' ~ $node ~ '.service', :w;
     $fh.put:    '[Unit]';
     $fh.put:    'Description="IBM SP Client dsmcad' ~ $node ~ ' service."';
     $fh.put:    'After=local-fs.target network-online.target' ~ "\n";
