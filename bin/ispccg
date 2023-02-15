@@ -572,10 +572,11 @@ multi sub dsmgen(
                     Str:D   :$isp-client-ip-address,
                 ) {
     my $dsm-opt-file-name-ext   = '';
-    my $dsmcad-draft-path       = "/var/isp/ba/{$isp-client-name.uc}/dsmcad";
+    my $dsmcad-draft-path-dir   = "/var/isp/ba/{$isp-client-name.uc}";
+    my $dsmcad-draft-path       = $dsmcad-draft-path-dir ~ '/dsmcad';
     unless $isp-client-ip-label ~~ m:i/ ^ $isp-client-name / {
         $dsm-opt-file-name-ext  = '_' ~ $isp-client-name;
-        $dsmcad-draft-path      = $dsmcad-draft-path ~ $dsm-opt-file-name-ext;
+        $dsmcad-draft-path      = $dsmcad-draft-path-dir ~ '/dsmcad' ~ $dsm-opt-file-name-ext;
     }
     $dsmcad-draft-path          = $dsmcad-draft-path ~ '.service';
     my @commands;
@@ -679,11 +680,11 @@ multi sub dsmgen(
     chown 644 \qq[{$dsmcad-draft-path}]
     cp \qq[{$dsmcad-draft-path}] /etc/systemd/system/
     chcon unconfined_u:object_r:systemd_unit_file_t:s0 /etc/systemd/system/
-EODCODECREATE
+    EODCODECREATE
     @commands[1] = 'dsmc query session' ~ ' -optfile=/opt/tivoli/tsm/client/ba/bin/dsm' ~ $dsm-opt-file-name-ext ~ '.opt';
     @commands.push: 'systemctl daemon-reload';
-    @commands.push: "systemctl enable dsmcad{$dsm-opt-file-name-ext}";
-    @commands.push: "systemctl start dsmcad{$dsm-opt-file-name-ext}";
+    @commands.push: "systemctl enable dsmcad{$dsm-opt-file-name-ext}.service";
+    @commands.push: "systemctl start dsmcad{$dsm-opt-file-name-ext}.service";
     colored(@commands[0], 'cyan').print;
     colored(@commands[1], 'white on_cyan').put;
     for 2 .. @commands.elems - 1 {
