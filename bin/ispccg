@@ -595,7 +595,7 @@ multi sub dsmgen(
         DEDUPLICATION           YES
         ENABLEINSTRUMENTATION   YES
         ERRORLOGNAME            /var/isp/ba/\qq[{$isp-client-name.uc}]/dsmerror.log
-        ERRORLOGRETENTION       $ERRORLOGRETENTION
+        ERRORLOGRETENTION       \qq[$ERRORLOGRETENTION]
         HTTPPORT                1581
         INCLEXCL                /var/isp/ba/\qq[{$isp-client-name.uc}]/INCLEXCL.ISP
         INSTRLOGMAX             \qq[{$INSTRLOGMAX}]
