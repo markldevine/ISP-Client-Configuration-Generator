@@ -714,38 +714,40 @@ multi sub dsmgen(
                 ) {
     my @commands;
     my $ISP-CLIENT-NAME = $isp-client-name.uc;
+    my $ISP-SERVER-NAME = $isp-server-name.uc;
     @commands[0] = Q:q:s:to/EODCODECREATE/;
-    IF NOT EXIST "C:\Program Files\Tivoli\TSM\baclient\NODES" MKDIR "C:\Program Files\Tivoli\TSM\baclient\NODES"
-    IF NOT EXIST "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]" MKDIR "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]"
-    IF NOT EXIST "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]\DEDUPCACHE" MKDIR "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]\DEDUPCACHE"
-    CD /D "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]
+    IF NOT EXIST "C:\Program Files\Tivoli\TSM\baclient\NODES"                                     MKDIR "C:\Program Files\Tivoli\TSM\baclient\NODES"
+    IF NOT EXIST "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]"                     MKDIR "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]"
+    IF NOT EXIST "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]\\\qq[$ISP-SERVER-NAME]"             MKDIR "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]\\\qq[$ISP-SERVER-NAME]"
+    IF NOT EXIST "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]\\\qq[$ISP-SERVER-NAME]\DEDUPCACHE"  MKDIR "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]\\\qq[$ISP-SERVER-NAME]\DEDUPCACHE"
+    CD /D "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]\\\qq[$ISP-SERVER-NAME]
     IF EXIST dsm.opt COPY /Y dsm.opt dsm.opt.ORIG
     ECHO ******************************************************************************** > dsm.opt
     ECHO ***               Backup/Archive Client for local volumes only               *** >> dsm.opt
     ECHO ******************************************************************************** >> dsm.opt
     ECHO  CLUSTERNODE                  NO >> dsm.opt
     ECHO  COMMMETHOD                   TCPIP >> dsm.opt
-    ECHO  COMPRESSION                  YES >> dsm.opt
-    ECHO  DEDUPCACHEPATH               "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]\DEDUPCACHE" >> dsm.opt
+    ECHO *COMPRESSION                  YES >> dsm.opt
+    ECHO  DEDUPCACHEPATH               "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]\\\qq[$ISP-SERVER-NAME]\DEDUPCACHE" >> dsm.opt
     ECHO  DEDUPCACHESIZE               2048 >> dsm.opt
-    ECHO  DEDUPLICATION                YES >> dsm.opt
-    ECHO  DOMAIN                       ALL-LOCAL >> dsm.opt
+    ECHO *DEDUPLICATION                YES >> dsm.opt
     ECHO  ENABLEDEDUPCACHE             YES >> dsm.opt
     ECHO  ENABLEINSTRUMENTATION        NO >> dsm.opt
-    ECHO  ERRORLOGNAME                 "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]\dsmerror.log" >> dsm.opt
+    ECHO  ERRORLOGNAME                 "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]\\\qq[$ISP-SERVER-NAME]\dsmerror.log" >> dsm.opt
     ECHO  ERRORLOGRETENTION            \qq[$ERRORLOGRETENTION] >> dsm.opt
     ECHO  HTTPPORT                     1581 >> dsm.opt
-    ECHO  INCLEXCL                     "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]\INCLEXCL.ISP" >> dsm.opt
+    ECHO *INCLEXCL                     "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]\\\qq[$ISP-SERVER-NAME]\INCLEXCL.ISP" >> dsm.opt
     ECHO  INSTRLOGMAX                  \qq[$INSTRLOGMAX] >> dsm.opt
-    ECHO  INSTRLOGNAME                 "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]\dsminstr.log" >> dsm.opt
+    ECHO  INSTRLOGNAME                 "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]\\\qq[$ISP-SERVER-NAME]\dsminstr.log" >> dsm.opt
     ECHO  MANAGEDSERVICES              SCHEDULE WEBCLIENT >> dsm.opt
+    ECHO  MEMORYEFFICIENTBACKUP        YES >> dsm.opt
     ECHO  NODENAME                     \qq[$ISP-CLIENT-NAME] >> dsm.opt
     ECHO  PASSWORDACCESS               GENERATE >> dsm.opt
     ECHO  QUERYSCHEDPERIOD             4 >> dsm.opt
-    ECHO *PRESCHEDULECMD               "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]\PRESCHEDCMD.BAT" >> dsm.opt
-    ECHO *POSTSCHEDULECMD              "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]\POSTSCHEDCMD.BAT" >> dsm.opt
-    ECHO  RESOURCEUTILIZATION          5 >> dsm.opt
-    ECHO  SCHEDLOGNAME                 "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]\dsmsched.log" >> dsm.opt
+    ECHO *PRESCHEDULECMD               "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]\\\qq[$ISP-SERVER-NAME]\PRESCHEDCMD.BAT" >> dsm.opt
+    ECHO *POSTSCHEDULECMD              "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]\\\qq[$ISP-SERVER-NAME]\POSTSCHEDCMD.BAT" >> dsm.opt
+    ECHO  RESOURCEUTILIZATION          10 >> dsm.opt
+    ECHO  SCHEDLOGNAME                 "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]\\\qq[$ISP-SERVER-NAME]\dsmsched.log" >> dsm.opt
     ECHO  SCHEDLOGRETENTION            \qq[$SCHEDLOGRETENTION] >> dsm.opt
     ECHO  SCHEDMODE                    POLLING >> dsm.opt
     ECHO  SNAPSHOTPROVIDERFS           NONE >> dsm.opt
@@ -758,41 +760,54 @@ multi sub dsmgen(
     ECHO  TCPWINDOWSIZE                0 >> dsm.opt
     ECHO  TXNBYTELIMIT                 \qq[$TXNBYTELIMIT] >> dsm.opt
     ECHO  WEBPORTS                     1582 1581 >> dsm.opt
-    ECHO  INCLUDE.FS %SYSTEMDRIVE% SNAPSHOTPROVIDERFS=VSS > "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]\INCLEXCL.ISP"
+    ECHO  INCLUDE.FS %SYSTEMDRIVE% SNAPSHOTPROVIDERFS=VSS > "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]\\\qq[$ISP-SERVER-NAME]\INCLEXCL.ISP"
     WMIC product get name | FIND "Microsoft SQL Server" > NUL
     IF %ERRORLEVEL% EQU 0 (
-        echo  EXCLUDE '*:\...\*.[Ll][Dd][Ff]' >> "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]\INCLEXCL.ISP"
-        echo  EXCLUDE '*:\...\*.[Mm][Dd][Ff]' >> "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]\INCLEXCL.ISP"
-        echo  EXCLUDE '*:\...\*.[Nn][Dd][Ff]' >> "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]\INCLEXCL.ISP"
+        echo  EXCLUDE '*:\...\*.[Ll][Dd][Ff]' >> "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]\\\qq[$ISP-SERVER-NAME]\INCLEXCL.ISP"
+        echo  EXCLUDE '*:\...\*.[Mm][Dd][Ff]' >> "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]\\\qq[$ISP-SERVER-NAME]\INCLEXCL.ISP"
+        echo  EXCLUDE '*:\...\*.[Nn][Dd][Ff]' >> "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]\\\qq[$ISP-SERVER-NAME]\INCLEXCL.ISP"
     )
     EODCODECREATE
     @commands[1] = '"C:\Program Files\Tivoli\TSM\baclient\dsmc.exe" query session -optfile="C:\Program Files\Tivoli\TSM\baclient\NODES\\'
                     ~ $ISP-CLIENT-NAME
+                    ~ '\\'
+                    ~ $ISP-SERVER-NAME
                     ~ '\dsm.opt"';
     @commands[2] = '"C:\Program Files\Tivoli\TSM\baclient\dsmcutil" install scheduler /name:"ISP Client Scheduler: '
                     ~ $ISP-CLIENT-NAME
+                    ~ '_'
+                    ~ $ISP-SERVER-NAME
                     ~ '" /node:'
                     ~ $ISP-CLIENT-NAME
                     ~ ' /password:"'
                     ~ KHPH.new(:stash-path($*HOME ~ '/.' ~ $*PROGRAM-NAME.IO.basename ~ '/defaults/' ~ $isp-server-name ~ '/NODE/password.khph')).expose
                     ~ '" /autostart:no /startnow:no /optfile:"C:\Program Files\Tivoli\TSM\baclient\NODES\\'
                     ~ $ISP-CLIENT-NAME
+                    ~ '\\'
+                    ~ $ISP-SERVER-NAME
                     ~ '\dsm.opt"';
     @commands[3] = '"C:\Program Files\Tivoli\TSM\baclient\dsmcutil" install cad /name:"ISP Client Acceptor: '
                     ~ $ISP-CLIENT-NAME
+                    ~ '_'
+                    ~ $ISP-SERVER-NAME
                     ~ '" /node:'
                     ~ $ISP-CLIENT-NAME
                     ~ ' /password:"'
                     ~ KHPH.new(:stash-path($*HOME ~ '/.' ~ $*PROGRAM-NAME.IO.basename ~ '/defaults/' ~ $isp-server-name ~ '/NODE/password.khph')).expose
                     ~ '" /autostart:yes /startnow:yes /cadschedname:"ISP Client Scheduler: '
                     ~ $ISP-CLIENT-NAME
+                    ~ '_'
+                    ~ $ISP-SERVER-NAME
                     ~ '" /optfile:"C:\Program Files\Tivoli\TSM\baclient\NODES\\'
                     ~ $ISP-CLIENT-NAME
+                    ~ '\\'
+                    ~ $ISP-SERVER-NAME
                     ~ '\dsm.opt"';
     colored(@commands[0], 'magenta').print;
     colored(@commands[1], 'white on_magenta').put;
     colored(@commands[2], 'magenta').put;
     colored(@commands[3], 'magenta').put;
+    colored('REMEMBER to adjust HTTPPORT & WEBPORTS...!', 'white on_black').put;
 }
 
 =finish
