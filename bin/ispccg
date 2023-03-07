@@ -287,14 +287,15 @@ enum OS (
         );
 
 sub MAIN (
-    Str:D   :$isp-server-name!,            #= ISP server name (SELECT SERVER_NAME FROM STATUS)
-    Str:D   :$isp-node-name!,              #= ISP client name (SELECT NODE_NAME FROM NODES)
-    OS      :$os!,                         #= ISP client Operating System
-    Str:D   :$isp-admin!,                  #= ISP server Admin account (CLASS=SYSTEM)
-    Str     :$isp-server-if-ip-label,      #= ISP server network interface IPV4 label
-    Str     :$isp-server-if-ip-address,    #= ISP server network interface IPV4 address
-    Str     :$isp-node-if-ip-label,        #= ISP client network interface IPV4 label
-    Str     :$isp-node-if-ip-address,      #= ISP client network interface IPV4 address
+    Str:D   :$isp-server-name!,                 #= ISP server name (SELECT SERVER_NAME FROM STATUS)
+    Str:D   :$isp-node-name!,                   #= ISP client name (SELECT NODE_NAME FROM NODES)
+    OS      :$os!,                              #= ISP client Operating System
+    Str:D   :$isp-admin!,                       #= ISP server Admin account (CLASS=SYSTEM)
+    Str     :$isp-server-if-ip-label,           #= ISP server network interface IPV4 label
+    Str     :$isp-server-if-ip-address,         #= ISP server network interface IPV4 address
+    Str     :$isp-node-if-ip-label,             #= ISP client network interface IPV4 label
+    Str     :$isp-node-if-ip-address,           #= ISP client network interface IPV4 address
+    Int:D   :$http-port                 = 1581; #= ISP client HTTPPORT
 ) {
     my $proc;
     my $err;
@@ -486,6 +487,7 @@ multi sub dsmgen(
                     Str:D   :$isp-client-name,
                     Str:D   :$isp-client-ip-label,
                     Str:D   :$isp-client-ip-address,
+                    Int:D   :$http-port,
                 ) {
 my @commands;
 @commands[0] = qq:to/EODCODECREATE/;
@@ -580,7 +582,9 @@ multi sub dsmgen(
                     Str:D   :$isp-client-name,
                     Str:D   :$isp-client-ip-label,
                     Str:D   :$isp-client-ip-address,
+                    Int:D   :$http-port,
                 ) {
+    my Int $web-port            = $http-port + 1;
     my $SERVER_NAME             = $isp-server-name.uc;
     my $NODE_NAME               = $isp-client-name.uc;
     my $dsm-opt-file-name-ext   = '';
@@ -605,7 +609,7 @@ multi sub dsmgen(
         ENABLEINSTRUMENTATION   YES
         ERRORLOGNAME            /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/dsmerror.log
         ERRORLOGRETENTION       \qq[$ERRORLOGRETENTION]
-        HTTPPORT                1581
+        HTTPPORT                \qq[$http-port]
         INCLEXCL                /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/INCLEXCL.ISP
         INSTRLOGMAX             \qq[{$INSTRLOGMAX}]
         INSTRLOGNAME            /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/dsminstr.log
@@ -624,7 +628,7 @@ multi sub dsmgen(
         TCPSERVERADDRESS        \qq[{$isp-server-ip-label}]
     *   TCPSERVERADDRESS        \qq[{$isp-server-ip-address}]
         TXNBYTELIMIT            \qq[{$TXNBYTELIMIT}]
-        WEBPORTS                1582 1581
+        WEBPORTS                \qq[$web-port] \qq[$http-port]
     EODSMSYSCREATE
     chmod 644 /opt/tivoli/tsm/client/ba/bin/dsm.sys
     chown root:DCI_GPO_BACKUPADMINS_DL_SG /opt/tivoli/tsm/client/ba/bin/dsm.sys
