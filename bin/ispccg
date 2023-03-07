@@ -662,7 +662,7 @@ multi sub dsmgen(
     if [ ! -f /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/postsched.sh ] ; then echo -e '#!/bin/sh\\nexit 0' > /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/postsched.sh ; fi
     chmod 740 /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/postsched.sh
     chown root:DCI_GPO_BACKUPADMINS_DL_SG /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/postsched.sh
-    touch /var/isp/ba/\qq[$NODE-NAME]/\qq[$SERVER_NAME]/INCLEXCL.ISP
+    touch /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/INCLEXCL.ISP
     chmod 640 /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/INCLEXCL.ISP
     chown root:DCI_GPO_BACKUPADMINS_DL_SG /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/INCLEXCL.ISP
     touch /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/dsmsched.log
