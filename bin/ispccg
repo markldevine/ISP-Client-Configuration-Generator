@@ -476,6 +476,7 @@ else {
            :isp-client-name($NODE_NAME),
            :isp-client-ip-label($resolved-client-ip-label),
            :isp-client-ip-address($resolved-client-ip-address),
+           :$http-port,
           );
 }
 
@@ -487,7 +488,6 @@ multi sub dsmgen(
                     Str:D   :$isp-client-name,
                     Str:D   :$isp-client-ip-label,
                     Str:D   :$isp-client-ip-address,
-                    Int:D   :$http-port,
                 ) {
 my @commands;
 @commands[0] = qq:to/EODCODECREATE/;
