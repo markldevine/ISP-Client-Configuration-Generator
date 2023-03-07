@@ -581,9 +581,11 @@ multi sub dsmgen(
                     Str:D   :$isp-client-ip-label,
                     Str:D   :$isp-client-ip-address,
                 ) {
+    my $SERVER_NAME             = $isp-server-name.uc;
+    my $NODE_NAME               = $isp-client-name.uc;
     my $dsm-opt-file-name-ext   = '';
     my $dsmcad-name             = 'dsmcad';
-    my $dsmcad-draft-path-dir   = "/var/isp/ba/{$isp-client-name.uc}";
+    my $dsmcad-draft-path-dir   = '/var/isp/ba/' ~ $NODE_NAME;
     my $dsmcad-draft-path       = $dsmcad-draft-path-dir ~ '/' ~ $dsmcad-name;
     unless $isp-client-ip-label ~~ m:i/ ^ $isp-client-name / {
         $dsm-opt-file-name-ext  = '_' ~ $isp-client-name;
@@ -594,28 +596,28 @@ multi sub dsmgen(
     @commands[0] = q:to/EODCODECREATE/;
     cat >> /opt/tivoli/tsm/client/ba/bin/dsm.sys <<EODSMSYSCREATE
 
-    SERVERNAME \qq[{$isp-client-name.uc}]_\qq[{$isp-server-name.uc}]
+    SERVERNAME \qq[$NODE_NAME]_\qq[$SERVER_NAME]
         COMMMETHOD              TCPIP
         COMPRESSION             YES
-        DEDUPCACHEPATH          /var/isp/ba/\qq[{$isp-client-name.uc}]/DEDUPCACHE
+        DEDUPCACHEPATH          /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/\qq[$SERVER_NAME]/DEDUPCACHE
         DEDUPCACHESIZE          2048
         DEDUPLICATION           YES
         ENABLEINSTRUMENTATION   YES
-        ERRORLOGNAME            /var/isp/ba/\qq[{$isp-client-name.uc}]/dsmerror.log
+        ERRORLOGNAME            /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/dsmerror.log
         ERRORLOGRETENTION       \qq[$ERRORLOGRETENTION]
         HTTPPORT                1581
-        INCLEXCL                /var/isp/ba/\qq[{$isp-client-name.uc}]/INCLEXCL.ISP
+        INCLEXCL                /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/INCLEXCL.ISP
         INSTRLOGMAX             \qq[{$INSTRLOGMAX}]
-        INSTRLOGNAME            /var/isp/ba/\qq[{$isp-client-name.uc}]/dsminstr.log
+        INSTRLOGNAME            /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/dsminstr.log
         MANAGEDSERVICES         SCHEDULE WEBCLIENT
-        NODENAME                \qq[{$isp-client-name.uc}]
-    *   PRESCHEDULECMD          /var/isp/ba/\qq[{$isp-client-name.uc}]/presched.sh
-    *   POSTSCHEDULECMD         /var/isp/ba/\qq[{$isp-client-name.uc}]/postsched.sh
+        NODENAME                \qq[$NODE_NAME]
+    *   PRESCHEDULECMD          /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/presched.sh
+    *   POSTSCHEDULECMD         /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/postsched.sh
         PASSWORDACCESS          GENERATE
-        PASSWORDDIR             /var/isp/ba/\qq[{$isp-client-name.uc}]/passwd
+        PASSWORDDIR             /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/passwd
         QUERYSCHEDPERIOD        4
         RESOURCEUTILIZATION     1
-        SCHEDLOGNAME            /var/isp/ba/\qq[{$isp-client-name.uc}]/dsmsched.log
+        SCHEDLOGNAME            /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/dsmsched.log
         SCHEDLOGRETENTION       \qq[{$SCHEDLOGRETENTION}]
         TCPCADADDRESS           \qq[{$isp-client-ip-label}]
     *   TCPCADADDRESS           \qq[{$isp-client-ip-address}]
@@ -632,41 +634,44 @@ multi sub dsmgen(
     mkdir -p /var/isp/ba
     chmod 2750 /var/isp/ba
     chown root:DCI_GPO_BACKUPADMINS_DL_SG /var/isp/ba
-    mkdir -p /var/isp/ba/\qq[{$isp-client-name.uc}]
-    chmod 2770 /var/isp/ba/\qq[{$isp-client-name.uc}]
-    chown root:DCI_GPO_BACKUPADMINS_DL_SG /var/isp/ba/\qq[{$isp-client-name.uc}]
-    mkdir -p /var/isp/ba/\qq[{$isp-client-name.uc}]/DEDUPCACHE
-    chmod 2770 /var/isp/ba/\qq[{$isp-client-name.uc}]/DEDUPCACHE
-    chown root:DCI_GPO_BACKUPADMINS_DL_SG /var/isp/ba/\qq[{$isp-client-name.uc}]/DEDUPCACHE
-    mkdir -p /var/isp/ba/\qq[{$isp-client-name.uc}]/passwd
-    chmod 0700 /var/isp/ba/\qq[{$isp-client-name.uc}]/passwd
-    chmod g-s /var/isp/ba/\qq[{$isp-client-name.uc}]/passwd
-    chown root:DCI_GPO_BACKUPADMINS_DL_SG /var/isp/ba/\qq[{$isp-client-name.uc}]/passwd
-    touch /var/isp/ba/\qq[{$isp-client-name.uc}]/dsmerror.log
-    chmod 660 /var/isp/ba/\qq[{$isp-client-name.uc}]/dsmerror.log
-    chown root:DCI_GPO_BACKUPADMINS_DL_SG /var/isp/ba/\qq[{$isp-client-name.uc}]/dsmerror.log
-    touch /var/isp/ba/\qq[{$isp-client-name.uc}]/dsminstr.log
-    chmod 660 /var/isp/ba/\qq[{$isp-client-name.uc}]/dsminstr.log
-    chown root:DCI_GPO_BACKUPADMINS_DL_SG /var/isp/ba/\qq[{$isp-client-name.uc}]/dsminstr.log
-    touch /var/isp/ba/\qq[{$isp-client-name.uc}]/dsminstr.log.lock
-    chmod 660 /var/isp/ba/\qq[{$isp-client-name.uc}]/dsminstr.log.lock
-    chown root:DCI_GPO_BACKUPADMINS_DL_SG /var/isp/ba/\qq[{$isp-client-name.uc}]/dsminstr.log.lock
-    if [ ! -f /var/isp/ba/\qq[{$isp-client-name.uc}]/presched.sh ] ; then echo -e '#!/bin/sh\\nexit 0' > /var/isp/ba/\qq[{$isp-client-name.uc}]/presched.sh ; fi
-    chmod 740 /var/isp/ba/\qq[{$isp-client-name.uc}]/presched.sh
-    chown root:DCI_GPO_BACKUPADMINS_DL_SG /var/isp/ba/\qq[{$isp-client-name.uc}]/presched.sh
-    if [ ! -f /var/isp/ba/\qq[{$isp-client-name.uc}]/postsched.sh ] ; then echo -e '#!/bin/sh\\nexit 0' > /var/isp/ba/\qq[{$isp-client-name.uc}]/postsched.sh ; fi
-    chmod 740 /var/isp/ba/\qq[{$isp-client-name.uc}]/postsched.sh
-    chown root:DCI_GPO_BACKUPADMINS_DL_SG /var/isp/ba/\qq[{$isp-client-name.uc}]/postsched.sh
+    mkdir -p /var/isp/ba/\qq[$NODE_NAME]
+    chmod 2770 /var/isp/ba/\qq[$NODE_NAME]
+    chown root:DCI_GPO_BACKUPADMINS_DL_SG /var/isp/ba/\qq[$NODE_NAME]
+    mkdir -p /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]
+    chmod 2770 /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]
+    chown root:DCI_GPO_BACKUPADMINS_DL_SG /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]
+    mkdir -p /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/DEDUPCACHE
+    chmod 2770 /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/DEDUPCACHE
+    chown root:DCI_GPO_BACKUPADMINS_DL_SG /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/DEDUPCACHE
+    mkdir -p /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/passwd
+    chmod 0700 /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/passwd
+    chmod g-s /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/passwd
+    chown root:DCI_GPO_BACKUPADMINS_DL_SG /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/passwd
+    touch /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/dsmerror.log
+    chmod 660 /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/dsmerror.log
+    chown root:DCI_GPO_BACKUPADMINS_DL_SG /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/dsmerror.log
+    touch /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/dsminstr.log
+    chmod 660 /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/dsminstr.log
+    chown root:DCI_GPO_BACKUPADMINS_DL_SG /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/dsminstr.log
+    touch /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/dsminstr.log.lock
+    chmod 660 /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/dsminstr.log.lock
+    chown root:DCI_GPO_BACKUPADMINS_DL_SG /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/dsminstr.log.lock
+    if [ ! -f /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/presched.sh ] ; then echo -e '#!/bin/sh\\nexit 0' > /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/presched.sh ; fi
+    chmod 740 /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/presched.sh
+    chown root:DCI_GPO_BACKUPADMINS_DL_SG /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/presched.sh
+    if [ ! -f /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/postsched.sh ] ; then echo -e '#!/bin/sh\\nexit 0' > /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/postsched.sh ; fi
+    chmod 740 /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/postsched.sh
+    chown root:DCI_GPO_BACKUPADMINS_DL_SG /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/postsched.sh
     touch /var/isp/ba/\qq[{$isp-client-name}]/INCLEXCL.ISP
-    chmod 640 /var/isp/ba/\qq[{$isp-client-name.uc}]/INCLEXCL.ISP
-    chown root:DCI_GPO_BACKUPADMINS_DL_SG /var/isp/ba/\qq[{$isp-client-name.uc}]/INCLEXCL.ISP
-    touch /var/isp/ba/\qq[{$isp-client-name.uc}]/dsmsched.log
-    chmod 640 /var/isp/ba/\qq[{$isp-client-name.uc}]/dsmsched.log
-    chown root:DCI_GPO_BACKUPADMINS_DL_SG /var/isp/ba/\qq[{$isp-client-name.uc}]/dsmsched.log
-    touch /var/isp/ba/\qq[{$isp-client-name.uc}]/dsmwebcl.log
-    chmod 640 /var/isp/ba/\qq[{$isp-client-name.uc}]/dsmwebcl.log
-    chown root:DCI_GPO_BACKUPADMINS_DL_SG /var/isp/ba/\qq[{$isp-client-name.uc}]/dsmwebcl.log
-    echo SERVERNAME \qq[{$isp-client-name.uc}]_\qq[{$isp-server-name.uc}] > /opt/tivoli/tsm/client/ba/bin/dsm\qq[{$dsm-opt-file-name-ext}].opt
+    chmod 640 /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/INCLEXCL.ISP
+    chown root:DCI_GPO_BACKUPADMINS_DL_SG /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/INCLEXCL.ISP
+    touch /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/dsmsched.log
+    chmod 640 /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/dsmsched.log
+    chown root:DCI_GPO_BACKUPADMINS_DL_SG /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/dsmsched.log
+    touch /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/dsmwebcl.log
+    chmod 640 /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/dsmwebcl.log
+    chown root:DCI_GPO_BACKUPADMINS_DL_SG /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/dsmwebcl.log
+    echo SERVERNAME \qq[$NODE_NAME]/\qq[$SERVER_NAME]_\qq[$SERVER_NAME] > /opt/tivoli/tsm/client/ba/bin/dsm\qq[{$dsm-opt-file-name-ext}].opt
     chmod 644 /opt/tivoli/tsm/client/ba/bin/dsm\qq[{$dsm-opt-file-name-ext}].opt
     chown root:DCI_GPO_BACKUPADMINS_DL_SG /opt/tivoli/tsm/client/ba/bin/dsm\qq[{$dsm-opt-file-name-ext}].opt
     echo [Unit] > \qq[{$dsmcad-draft-path}]
