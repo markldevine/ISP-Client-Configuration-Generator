@@ -585,7 +585,7 @@ multi sub dsmgen(
     my $NODE_NAME               = $isp-client-name.uc;
     my $dsm-opt-file-name-ext   = '';
     my $dsmcad-name             = 'dsmcad';
-    my $dsmcad-draft-path-dir   = '/var/isp/ba/' ~ $NODE_NAME;
+    my $dsmcad-draft-path-dir   = '/var/isp/ba/' ~ $NODE_NAME ~ '_' ~ $SERVER_NAME;
     my $dsmcad-draft-path       = $dsmcad-draft-path-dir ~ '/' ~ $dsmcad-name;
     unless $isp-client-ip-label ~~ m:i/ ^ $isp-client-name / {
         $dsm-opt-file-name-ext  = '_' ~ $isp-client-name;
