@@ -671,7 +671,7 @@ multi sub dsmgen(
     touch /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/dsmwebcl.log
     chmod 640 /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/dsmwebcl.log
     chown root:DCI_GPO_BACKUPADMINS_DL_SG /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/dsmwebcl.log
-    echo SERVERNAME \qq[$NODE_NAME]/\qq[$SERVER_NAME]_\qq[$SERVER_NAME] > /opt/tivoli/tsm/client/ba/bin/dsm\qq[{$dsm-opt-file-name-ext}].opt
+    echo SERVERNAME \qq[$NODE_NAME]_\qq[$SERVER_NAME] > /opt/tivoli/tsm/client/ba/bin/dsm\qq[{$dsm-opt-file-name-ext}].opt
     chmod 644 /opt/tivoli/tsm/client/ba/bin/dsm\qq[{$dsm-opt-file-name-ext}].opt
     chown root:DCI_GPO_BACKUPADMINS_DL_SG /opt/tivoli/tsm/client/ba/bin/dsm\qq[{$dsm-opt-file-name-ext}].opt
     echo [Unit] > \qq[{$dsmcad-draft-path}]
