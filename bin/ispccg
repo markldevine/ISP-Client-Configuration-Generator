@@ -514,7 +514,7 @@ multi sub dsmgen(
         ERRORLOGNAME            /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/dsmerror.log
         ERRORLOGRETENTION       \qq[$ERRORLOGRETENTION]
         HTTPPORT                \qq[$http-port]
-        INCLEXCL                /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/INCLEXCL.ISP
+    *   INCLEXCL                /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/INCLEXCL.ISP
         INSTRLOGMAX             \qq[{$INSTRLOGMAX}]
         INSTRLOGNAME            /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/dsminstr.log
         MANAGEDSERVICES         SCHEDULE WEBCLIENT
@@ -584,8 +584,11 @@ multi sub dsmgen(
     chown root:system /usr/tivoli/tsm/client/ba/bin64/dsm\qq[{$dsm-opt-file-name-ext}].opt
     EODCODECREATE
     @commands[1]    = 'dsmc query session' ~ ' -optfile=/usr/tivoli/tsm/client/ba/bin64/dsm' ~ $dsm-opt-file-name-ext ~ '.opt';
-    @commands.push: 'mkitab "dsmcad::once:/usr/bin/dsmcad -optfile=/usr/tivoli/tsm/client/ba/bin64/dsm.opt"';
-    @commands.push: '/usr/bin/dsmcad -optfile=/usr/tivoli/tsm/client/ba/bin64/dsm.opt';
+    @commands.push: "sed -e '/^### END INIT INFO\$/a \\\\nexport DSM_CONFIG=\/usr\/tivoli\/tsm\/client\/ba\/bin64\/dsm{$dsm-opt-file-name-ext}.opt' /usr/tivoli/tsm/client/ba/bin64/rc.dsmcad > /etc/init.d/dsmcad{$dsm-opt-file-name-ext}";
+    @commands.push: qq|sed -i -e 's/^      daemon \$DSMCAD_BIN/      daemon \$DSMCAD_BIN -optfile=\$\{DSM_CONFIG\}/' /etc/init.d/dsmcad{$dsm-opt-file-name-ext}|;
+    @commands.push: "chmod 755 /etc/init.d/dsmcad{$dsm-opt-file-name-ext}";
+    @commands.push: 'mkitab "dsmcad::once:/usr/bin/dsmcad -optfile=/usr/tivoli/tsm/client/ba/bin64/dsm' ~ {$dsm-opt-file-name-ext} ~ '.opt"';
+    @commands.push: '/usr/bin/dsmcad -optfile=/usr/tivoli/tsm/client/ba/bin64/dsm' ~ {$dsm-opt-file-name-ext} ~ '.opt';
     colored(@commands[0], 'red').print;
     colored(@commands[1], 'white on_red').put;
     for 2 .. @commands.elems - 1 {
@@ -619,18 +622,19 @@ multi sub dsmgen(
 
     SERVERNAME \qq[$NODE_NAME]_\qq[$SERVER_NAME]
         COMMMETHOD              TCPIP
-        COMPRESSION             YES
+    *   COMPRESSION             YES
         DEDUPCACHEPATH          /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/\qq[$SERVER_NAME]/DEDUPCACHE
         DEDUPCACHESIZE          2048
-        DEDUPLICATION           YES
+    *   DEDUPLICATION           YES
         ENABLEINSTRUMENTATION   YES
         ERRORLOGNAME            /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/dsmerror.log
         ERRORLOGRETENTION       \qq[$ERRORLOGRETENTION]
         HTTPPORT                \qq[$http-port]
-        INCLEXCL                /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/INCLEXCL.ISP
+    *   INCLEXCL                /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/INCLEXCL.ISP
         INSTRLOGMAX             \qq[{$INSTRLOGMAX}]
         INSTRLOGNAME            /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/dsminstr.log
         MANAGEDSERVICES         SCHEDULE WEBCLIENT
+    *   MEMORYEFFICIENTBACKUP   YES
         NODENAME                \qq[$NODE_NAME]
     *   PRESCHEDULECMD          /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/presched.sh
     *   POSTSCHEDULECMD         /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/postsched.sh
@@ -836,11 +840,3 @@ multi sub dsmgen(
 }
 
 =finish
-
-#   @commands[1] = 'dsmc query session' ~ ' -optfile=/opt/tivoli/tsm/client/ba/bin/dsm' ~ $dsm-opt-file-name-ext ~ '.opt';
-#   if $dsm-opt-file-name-ext {
-#       @commands.push: "sed -e '/^### END INIT INFO\$/a \\\\nexport DSM_CONFIG=\/opt\/tivoli\/tsm\/client\/ba\/bin\/dsm{$dsm-opt-file-name-ext}.opt' /opt/tivoli/tsm/client/ba/bin/rc.dsmcad > /etc/init.d/dsmcad{$dsm-opt-file-name-ext}";
-#       @commands.push: qq|sed -i -e 's/^      daemon \$DSMCAD_BIN/      daemon \$DSMCAD_BIN -optfile=\$\{DSM_CONFIG\}/' /etc/init.d/dsmcad{$dsm-opt-file-name-ext}|;
-#       @commands.push: "chmod 755 /etc/init.d/dsmcad{$dsm-opt-file-name-ext}";
-#   }
-
