@@ -584,11 +584,11 @@ multi sub dsmgen(
     chown root:system /usr/tivoli/tsm/client/ba/bin64/dsm\qq[{$dsm-opt-file-name-ext}].opt
     EODCODECREATE
     @commands[1]    = 'dsmc query session' ~ ' -optfile=/usr/tivoli/tsm/client/ba/bin64/dsm' ~ $dsm-opt-file-name-ext ~ '.opt';
-    @commands.push: "sed -e '/^### END INIT INFO\$/a \\\\nexport DSM_CONFIG=\/usr\/tivoli\/tsm\/client\/ba\/bin64\/dsm{$dsm-opt-file-name-ext}.opt' /usr/tivoli/tsm/client/ba/bin64/rc.dsmcad > /etc/init.d/dsmcad{$dsm-opt-file-name-ext}";
-    @commands.push: qq|sed -i -e 's/^      daemon \$DSMCAD_BIN/      daemon \$DSMCAD_BIN -optfile=\$\{DSM_CONFIG\}/' /etc/init.d/dsmcad{$dsm-opt-file-name-ext}|;
-    @commands.push: "chmod 755 /etc/init.d/dsmcad{$dsm-opt-file-name-ext}";
-    @commands.push: 'mkitab "dsmcad::once:/usr/bin/dsmcad -optfile=/usr/tivoli/tsm/client/ba/bin64/dsm' ~ {$dsm-opt-file-name-ext} ~ '.opt"';
-    @commands.push: '/usr/bin/dsmcad -optfile=/usr/tivoli/tsm/client/ba/bin64/dsm' ~ {$dsm-opt-file-name-ext} ~ '.opt';
+#   @commands.push: "sed -e '/^### END INIT INFO\$/a \\\\nexport DSM_CONFIG=\/usr\/tivoli\/tsm\/client\/ba\/bin64\/dsm{$dsm-opt-file-name-ext}.opt' /usr/tivoli/tsm/client/ba/bin64/rc.dsmcad > /etc/init.d/dsmcad{$dsm-opt-file-name-ext}";
+#   @commands.push: qq|sed -i -e 's/^      daemon \$DSMCAD_BIN/      daemon \$DSMCAD_BIN -optfile=\$\{DSM_CONFIG\}/' /etc/init.d/dsmcad{$dsm-opt-file-name-ext}|;
+#   @commands.push: "chmod 755 /etc/init.d/dsmcad{$dsm-opt-file-name-ext}";
+    @commands.push: 'mkitab "dsmcad::once:/usr/bin/dsmcad -optfile=/usr/tivoli/tsm/client/ba/bin64/dsm' ~ $dsm-opt-file-name-ext ~ '.opt"';
+    @commands.push: '/usr/bin/dsmcad -optfile=/usr/tivoli/tsm/client/ba/bin64/dsm' ~ $dsm-opt-file-name-ext ~ '.opt';
     colored(@commands[0], 'red').print;
     colored(@commands[1], 'white on_red').put;
     for 2 .. @commands.elems - 1 {
