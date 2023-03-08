@@ -1,5 +1,6 @@
 #!/usr/bin/env raku
 
+use ISP::dsmadmc;
 use KHPH;
 use Terminal::ANSIColor;
 use Prettier::Table;
@@ -396,35 +397,19 @@ else {
     }
 }
 
-    $proc   = run   
-#                   '/usr/bin/stdbuf',
-#                   '-i0',
-#                   '-o0',
-#                   '-e0',
-                    '/usr/bin/dsmadmc',
-                    '-SE=' ~ $isp-admin ~ '_' ~ $SERVER_NAME,
-                    '-ID=' ~ $isp-admin,
-                    '-PA=' ~ KHPH.new(:stash-path($*HOME ~ '/.isp/admin/' ~ $SERVER_NAME ~ '/' ~ $isp-admin ~ '.khph')).expose,
-                    '-DATAONLY=YES',
-                    '-DISPLAYMODE=TABLE',
-                    '-TABDELIMITED',
-                    'SELECT',
-                    'NODE_NAME,SESSION_SECURITY',
-                    'FROM',
-                    'NODES',
-                    'WHERE',
-                    'NODE_NAME=' ~ q|'| ~ $NODE_NAME ~ q|'|,
-                    :err,
-                    :out;
-    $err    = $proc.err.slurp(:close);
-    $out    = $proc.out.slurp(:close);
-
-    my $session-security;
-    unless $proc.exitcode {
-        my $node-name;
-        ($node-name, $session-security) = $out.split: /\t/;
-        $NODE_NAME                      = $node-name with $node-name;
+    my ISP::dsmadmc $dsmadmc   .= new(:isp-server($SERVER_NAME), :$isp-admin);
+    my $node-info               = $dsmadmc.execute(['SELECT', 'NODE_NAME,OPTION_SET,SESSION_SECURITY,NODEGROUP', 'FROM', 'NODES', 'WHERE', 'NODE_NAME=' ~ q|'| ~ $NODE_NAME ~ q|'|]);
+    $NODE_NAME                  = $node-info[0]<NODE_NAME> with $node-info[0]<NODE_NAME>;
+    if $node-info[0]<NODE_NAME>:exists && $node-info[0]<OPTION_SET> ne $NODE_NAME {
+        colored($NODE_NAME ~ ' requires CLOPTSET "' ~ $NODE_NAME ~ '" before proceeding.', 'red on_black').put;
+        exit 1;
     }
+    my $OPTION_SET;
+    $OPTION_SET                 = $node-info[0]<OPTION_SET> with $node-info[0]<OPTION_SET>;
+    my $SESSION_SECURITY;
+    $SESSION_SECURITY           = $node-info[0]<SESSION_SECURITY> with $node-info[0]<SESSION_SECURITY>;
+    my $NODEGROUP;
+    $NODEGROUP                  = $node-info[0]<NODEGROUP> with $node-info[0]<NODEGROUP>;
 
     my $table = Prettier::Table.new:
         title => "IBM Spectrum Protect Configuration Summary",
@@ -444,10 +429,14 @@ else {
     }
     put $table;
 
-    with $NODE_NAME && $session-security {
-        colored('UPDATE NODE ' ~ $NODE_NAME ~ ' SESSIONSECURITY=TRANSITIONAL', 'white on_black').put if $session-security !~~ /:i ^Transitional/;
+    if $node-info[0]<NODE_NAME> {
+        colored('DEFINE CLOPTSET ' ~ $NODE_NAME, 'white on_black').put unless $OPTION_SET eq $NODE_NAME;
+        colored('UPDATE NODE ' ~ $NODE_NAME ~ ' SESSIONSECURITY=TRANSITIONAL', 'white on_black').put unless $SESSION_SECURITY eq 'Transitional';
+        colored('DEFINE NODEGROUPMEMBER %%% /* optional */', 'white on_black').put unless $NODEGROUP;
+        exit 1 unless $OPTION_SET eq $NODE_NAME && $SESSION_SECURITY eq 'Transitional';
     }
     else {
+        colored('DEFINE CLOPTSET ' ~ $NODE_NAME, 'white on_black').put unless $OPTION_SET && $OPTION_SET eq $NODE_NAME;
         colored('REGISTER NODE '
                 ~ $NODE_NAME
                 ~ ' '
@@ -461,12 +450,12 @@ else {
                 ~ ' '
                 ~ 'CONTACT="L%%%, F%%%%"'
                 ~ ' '
-                ~ 'EMAILADDRESS=%%%@%%%%%%.%%%'
-                ~ ' '
-                ~ 'REPLSTATE=ENABLED'
+                ~ 'EMAILADDRESS=%%%@%%%.%%%'
                 ~ ' '
                 ~ 'SESSIONSECURITY=TRANSITIONAL', 'white on_black').put;
-        colored('DEFINE NODEGROUPMEMBER %%%%%', 'white on_black').put;
+        colored('UPDATE NODE REPLSTATE=ENABLED /* optional */', 'white on_black').put;
+        colored('DEFINE NODEGROUPMEMBER %%% /* optional */', 'white on_black').put unless $NODEGROUP;
+        exit 1;
     }
 
     dsmgen(:$os,
