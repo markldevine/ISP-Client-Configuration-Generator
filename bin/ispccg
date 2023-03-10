@@ -433,7 +433,6 @@ else {
         colored('DEFINE CLOPTSET ' ~ $NODE_NAME, 'white on_black').put unless $OPTION_SET eq $NODE_NAME;
         colored('UPDATE NODE ' ~ $NODE_NAME ~ ' SESSIONSECURITY=TRANSITIONAL', 'white on_black').put unless $SESSION_SECURITY eq 'Transitional';
         colored('DEFINE NODEGROUPMEMBER %%% /* optional */', 'white on_black').put unless $NODEGROUP;
-        exit 1 unless $OPTION_SET eq $NODE_NAME && $SESSION_SECURITY eq 'Transitional';
     }
     else {
         colored('DEFINE CLOPTSET ' ~ $NODE_NAME, 'white on_black').put unless $OPTION_SET && $OPTION_SET eq $NODE_NAME;
@@ -576,7 +575,9 @@ multi sub dsmgen(
 #   @commands.push: "sed -e '/^### END INIT INFO\$/a \\\\nexport DSM_CONFIG=\/usr\/tivoli\/tsm\/client\/ba\/bin64\/dsm{$dsm-opt-file-name-ext}.opt' /usr/tivoli/tsm/client/ba/bin64/rc.dsmcad > /etc/init.d/dsmcad{$dsm-opt-file-name-ext}";
 #   @commands.push: qq|sed -i -e 's/^      daemon \$DSMCAD_BIN/      daemon \$DSMCAD_BIN -optfile=\$\{DSM_CONFIG\}/' /etc/init.d/dsmcad{$dsm-opt-file-name-ext}|;
 #   @commands.push: "chmod 755 /etc/init.d/dsmcad{$dsm-opt-file-name-ext}";
-    @commands.push: 'mkitab "dsmcad::once:/usr/bin/dsmcad -optfile=/usr/tivoli/tsm/client/ba/bin64/dsm' ~ $dsm-opt-file-name-ext ~ '.opt"';
+    my $ident       = 'dsmcad' ~$dsm-opt-file-name-ext;
+    $ident          = $ident.subst(/ISPLC/, "", :g) if $ident.chars > 14;
+    @commands.push: 'mkitab "' ~ $ident ~ '::once:/usr/bin/dsmcad -optfile=/usr/tivoli/tsm/client/ba/bin64/dsm' ~ $dsm-opt-file-name-ext ~ '.opt"';
     @commands.push: '/usr/bin/dsmcad -optfile=/usr/tivoli/tsm/client/ba/bin64/dsm' ~ $dsm-opt-file-name-ext ~ '.opt';
     colored(@commands[0], 'red').print;
     colored(@commands[1], 'white on_red').put;
