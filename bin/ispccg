@@ -730,7 +730,9 @@ multi sub dsmgen(
                     Str:D   :$isp-client-name,
                     Str:D   :$isp-client-ip-label,
                     Str:D   :$isp-client-ip-address,
+                    Int:D   :$http-port,
                 ) {
+    my Int $web-port    = $http-port + 1;
     my @commands;
     my $ISP-CLIENT-NAME = $isp-client-name.uc;
     my $ISP-SERVER-NAME = $isp-server-name.uc;
@@ -754,7 +756,7 @@ multi sub dsmgen(
     ECHO  ENABLEINSTRUMENTATION        NO >> dsm.opt
     ECHO  ERRORLOGNAME                 "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]\\\qq[$ISP-SERVER-NAME]\dsmerror.log" >> dsm.opt
     ECHO  ERRORLOGRETENTION            \qq[$ERRORLOGRETENTION] >> dsm.opt
-    ECHO  HTTPPORT                     1581 >> dsm.opt
+    ECHO  HTTPPORT                     \qq[$http-port] >> dsm.opt
     ECHO *INCLEXCL                     "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]\\\qq[$ISP-SERVER-NAME]\INCLEXCL.ISP" >> dsm.opt
     ECHO  INSTRLOGMAX                  \qq[$INSTRLOGMAX] >> dsm.opt
     ECHO  INSTRLOGNAME                 "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]\\\qq[$ISP-SERVER-NAME]\dsminstr.log" >> dsm.opt
@@ -778,7 +780,7 @@ multi sub dsmgen(
     ECHO *TCPSERVERADDRESS             \qq[$isp-server-ip-address] >> dsm.opt
     ECHO  TCPWINDOWSIZE                0 >> dsm.opt
     ECHO  TXNBYTELIMIT                 \qq[$TXNBYTELIMIT] >> dsm.opt
-    ECHO  WEBPORTS                     1582 1581 >> dsm.opt
+    ECHO  WEBPORTS                     \qq[$web-port] \qq[$http-port] >> dsm.opt
     ECHO  INCLUDE.FS %SYSTEMDRIVE% SNAPSHOTPROVIDERFS=VSS > "C:\Program Files\Tivoli\TSM\baclient\NODES\\\qq[$ISP-CLIENT-NAME]\\\qq[$ISP-SERVER-NAME]\INCLEXCL.ISP"
     WMIC product get name | FIND "Microsoft SQL Server" > NUL
     IF %ERRORLEVEL% EQU 0 (
