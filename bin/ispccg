@@ -432,7 +432,7 @@ else {
     if $node-info[0]<NODE_NAME> {
         colored('DEFINE CLOPTSET ' ~ $NODE_NAME, 'white on_black').put unless $OPTION_SET eq $NODE_NAME;
         colored('UPDATE NODE ' ~ $NODE_NAME ~ ' SESSIONSECURITY=TRANSITIONAL', 'white on_black').put unless $SESSION_SECURITY eq 'Transitional';
-        colored('DEFINE NODEGROUPMEMBER %%% /* optional */', 'white on_black').put unless $NODEGROUP;
+        colored('DEFINE NODEGROUPMEMBER %%% ' ~ $NODE_NAME ~ ' /* optional */', 'white on_black').put unless $NODEGROUP;
     }
     else {
         colored('DEFINE CLOPTSET ' ~ $NODE_NAME, 'white on_black').put unless $OPTION_SET && $OPTION_SET eq $NODE_NAME;
@@ -445,15 +445,18 @@ else {
                 ~ ' '
                 ~ 'USER=NONE'
                 ~ ' '
-                ~ 'MAXNUMMP=1'
+                ~ 'MAXNUMMP=5'
                 ~ ' '
                 ~ 'CONTACT="L%%%, F%%%%"'
                 ~ ' '
                 ~ 'EMAILADDRESS=%%%@%%%.%%%'
                 ~ ' '
+                ~ 'CLO=' ~ $NODE_NAME
+                ~ ' '
+                ~ 'REPLSTATE=ENABLED'
+                ~ ' '
                 ~ 'SESSIONSECURITY=TRANSITIONAL', 'white on_black').put;
-        colored('UPDATE NODE REPLSTATE=ENABLED /* optional */', 'white on_black').put;
-        colored('DEFINE NODEGROUPMEMBER %%% /* optional */', 'white on_black').put unless $NODEGROUP;
+        colored('DEFINE NODEGROUPMEMBER %%% ' ~ $NODE_NAME ~ ' /* optional */', 'white on_black').put unless $NODEGROUP;
         exit 1;
     }
 
