@@ -494,10 +494,10 @@ multi sub dsmgen(
 
     SERVERNAME \qq[$NODE_NAME]_\qq[$SERVER_NAME]
         COMMMETHOD              TCPIP
-        COMPRESSION             YES
+    *   COMPRESSION             YES
         DEDUPCACHEPATH          /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/\qq[$SERVER_NAME]/DEDUPCACHE
         DEDUPCACHESIZE          2048
-        DEDUPLICATION           YES
+    *   DEDUPLICATION           YES
         ENABLEINSTRUMENTATION   YES
         ERRORLOGNAME            /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/dsmerror.log
         ERRORLOGRETENTION       \qq[$ERRORLOGRETENTION]
@@ -512,7 +512,7 @@ multi sub dsmgen(
         PASSWORDACCESS          GENERATE
         PASSWORDDIR             /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/passwd
         QUERYSCHEDPERIOD        4
-        RESOURCEUTILIZATION     1
+        RESOURCEUTILIZATION     10
         SCHEDLOGNAME            /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/dsmsched.log
         SCHEDLOGRETENTION       \qq[{$SCHEDLOGRETENTION}]
         TCPCADADDRESS           \qq[{$isp-client-ip-label}]
@@ -631,7 +631,7 @@ multi sub dsmgen(
         PASSWORDACCESS          GENERATE
         PASSWORDDIR             /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/passwd
         QUERYSCHEDPERIOD        4
-        RESOURCEUTILIZATION     1
+        RESOURCEUTILIZATION     10
         SCHEDLOGNAME            /var/isp/ba/\qq[$NODE_NAME]/\qq[$SERVER_NAME]/dsmsched.log
         SCHEDLOGRETENTION       \qq[{$SCHEDLOGRETENTION}]
         TCPCADADDRESS           \qq[{$isp-client-ip-label}]
