@@ -828,13 +828,29 @@ multi sub dsmgen(
                     ~ '\\'
                     ~ $ISP-SERVER-NAME
                     ~ '\dsm.opt"';
-
 # DSMCUTIL INSTALL REMOTE /NAME:"ISP Client Agent: W-608863_ISPLC01" /PARTNERNAME:"ISP Client Acceptor: W-608863_ISPLC01" /PASSWORD:jgb6005th /startnow:no /optfile:"C:\Program Files\Tivoli\TSM\baclient\NODES\W-608863\ISPLC01\dsm.opt"
-
+    @commands[4] = '"C:\Program Files\Tivoli\TSM\baclient\dsmcutil" install remote /name:"ISP WebGUI Client Agent: '
+                    ~ $ISP-CLIENT-NAME
+                    ~ '_'
+                    ~ $ISP-SERVER-NAME
+                    ~ '" /partnername:"ISP Client Acceptor: '
+                    ~ $ISP-CLIENT-NAME
+                    ~ '_'
+                    ~ $ISP-SERVER-NAME
+                    ~ '"'
+                    ~ ' /password:"'
+                    ~ KHPH.new(:stash-path($*HOME ~ '/.' ~ $*PROGRAM-NAME.IO.basename ~ '/defaults/' ~ $isp-server-name ~ '/NODE/password.khph')).expose
+                    ~ '" /startnow:no '
+                    ~ ' /optfile:"C:\Program Files\Tivoli\TSM\baclient\NODES\\'
+                    ~ $ISP-CLIENT-NAME
+                    ~ '\\'
+                    ~ $ISP-SERVER-NAME
+                    ~ '\dsm.opt"';
     colored(@commands[0], 'magenta').print;
     colored(@commands[1], 'white on_magenta').put;
     colored(@commands[2], 'magenta').put;
     colored(@commands[3], 'magenta').put;
+    colored(@commands[4], 'magenta').put;
     colored('REMEMBER to adjust HTTPPORT & WEBPORTS...!', 'white on_black').put;
 }
 
