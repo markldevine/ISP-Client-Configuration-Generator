@@ -840,7 +840,7 @@ multi sub dsmgen(
                     ~ '"'
                     ~ ' /password:"'
                     ~ KHPH.new(:stash-path($*HOME ~ '/.' ~ $*PROGRAM-NAME.IO.basename ~ '/defaults/' ~ $isp-server-name ~ '/NODE/password.khph')).expose
-                    ~ '" /startnow:no '
+                    ~ '" /startnow:no'
                     ~ ' /optfile:"C:\Program Files\Tivoli\TSM\baclient\NODES\\'
                     ~ $ISP-CLIENT-NAME
                     ~ '\\'
