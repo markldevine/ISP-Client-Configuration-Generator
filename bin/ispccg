@@ -829,7 +829,7 @@ multi sub dsmgen(
                     ~ $ISP-SERVER-NAME
                     ~ '\dsm.opt"';
 # DSMCUTIL INSTALL REMOTE /NAME:"ISP Client Agent: W-608863_ISPLC01" /PARTNERNAME:"ISP Client Acceptor: W-608863_ISPLC01" /PASSWORD:jgb6005th /startnow:no /optfile:"C:\Program Files\Tivoli\TSM\baclient\NODES\W-608863\ISPLC01\dsm.opt"
-    @commands[4] = '"C:\Program Files\Tivoli\TSM\baclient\dsmcutil" install remote /name:"ISP WebGUI Client Agent: '
+    @commands[4] = '"C:\Program Files\Tivoli\TSM\baclient\dsmcutil" install remoteagent /name:"ISP WebGUI Client Agent: '
                     ~ $ISP-CLIENT-NAME
                     ~ '_'
                     ~ $ISP-SERVER-NAME
