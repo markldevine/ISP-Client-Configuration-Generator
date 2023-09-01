@@ -350,7 +350,7 @@ sub MAIN (
 #       - unless $isp-server-if-ip-label eq $resolved-server-ip-label
 #           - resolve A to IP address
 
-# %%%%%%%%%%    what if name is different than A, because it's a CNAME?
+# %%%%%%%%%    what if name is different than A, because it's a CNAME?
 
 #           - if sudo ping -q -c 1 -w 1 -i 1 <IP address from previous step>
 
