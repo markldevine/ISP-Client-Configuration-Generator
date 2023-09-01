@@ -826,11 +826,37 @@ multi sub dsmgen(
                     ~ '\\'
                     ~ $ISP-SERVER-NAME
                     ~ '\dsm.opt"';
+    @commands[4] = '"C:\Program Files\Tivoli\TSM\baclient\dsmcutil" install remoteagent /name:"ISP WebGUI Client Agent: '
+                    ~ $ISP-CLIENT-NAME
+#                   ~ '_'
+#                   ~ $ISP-SERVER-NAME
+                    ~ '" /partnername:"ISP Client Acceptor: '
+                    ~ $ISP-CLIENT-NAME
+                    ~ '_'
+                    ~ $ISP-SERVER-NAME
+                    ~ '"'
+                    ~ ' /password:"'
+                    ~ KHPH.new(:stash-path($*HOME ~ '/.' ~ $*PROGRAM-NAME.IO.basename ~ '/defaults/' ~ $isp-server-name ~ '/NODE/password.khph')).expose
+                    ~ '" /startnow:no'
+                    ~ ' /optfile:"C:\Program Files\Tivoli\TSM\baclient\NODES\\'
+                    ~ $ISP-CLIENT-NAME
+                    ~ '\\'
+                    ~ $ISP-SERVER-NAME
+                    ~ '\dsm.opt"';
     colored(@commands[0], 'magenta').print;
     colored(@commands[1], 'white on_magenta').put;
     colored(@commands[2], 'magenta').put;
     colored(@commands[3], 'magenta').put;
-    colored('REMEMBER to adjust HTTPPORT & WEBPORTS...!', 'white on_black').put;
+    colored(@commands[4], 'white on_magenta').put;
+    colored(        'REGISTER ADMIN '
+                    ~ $ISP-CLIENT-NAME
+                    ~ ' '
+                    ~ KHPH.new(:stash-path($*HOME ~ '/.' ~ $*PROGRAM-NAME.IO.basename ~ '/defaults/' ~ $isp-server-name ~ '/NODE/password.khph')).expose
+                    ~ ' PASSEXP=0'
+                    ~ ' CONTACT="L%%%, F%%%%"'
+                    ~ ' EMAILADDRESS=%%%@%%%.%%%'
+                    , 'white on_black').put;
+    colored('GRANT AUTHORITY ' ~ $ISP-CLIENT-NAME ~ ' CLASSES=NODE AUTHORITY=OWNER NODE=' ~ $ISP-CLIENT-NAME, 'white on_black').put;
 }
 
 =finish
