@@ -384,17 +384,17 @@ sub MAIN (
     my $resolved-client-ip-address;
     my $resolved-client-ip-label;
     try {
-if $try-label ~~ /:i 'jgstmgtgate1lpv' / {
-        $resolved-client-ip-address = '10.10.105.96';
-        $resolved-client-ip-label   = 'jgstmgtgate1lpv.wmata.local';
-}
-else {
+#if $try-label ~~ /:i 'jgstmgtgate1lpv' / {
+#        $resolved-client-ip-address = '10.10.105.96';
+#        $resolved-client-ip-label   = 'jgstmgtgate1lpv.wmata.local';
+#}
+#else {
         $resolved-client-ip-address = lookup-forward($try-label);
         $resolved-client-ip-label   = lookup-reverse($resolved-client-ip-address, :expectation($try-label));
         CATCH {
             warn "Unable to resolve IP information for $NODE_NAME" unless $resolved-client-ip-label && $resolved-client-ip-address;
         }
-    }
+#    }
 }
 
     my ISP::dsmadmc $dsmadmc   .= new(:isp-server($SERVER_NAME), :$isp-admin);
