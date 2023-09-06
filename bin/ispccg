@@ -443,7 +443,7 @@ else {
                 ~ ' '
                 ~ 'DOMAIN=%%%'
                 ~ ' '
-                ~ 'USER=NONE'
+                ~ 'USERID=' ~ $NODE_NAME
                 ~ ' '
                 ~ 'MAXNUMMP=5'
                 ~ ' '
