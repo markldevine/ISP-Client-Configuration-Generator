@@ -350,7 +350,7 @@ sub MAIN (
 #       - unless $isp-server-if-ip-label eq $resolved-server-ip-label
 #           - resolve A to IP address
 
-# %%%%%%%%%%    what if name is different than A, because it's a CNAME?
+# %%%%%%%%%    what if name is different than A, because it's a CNAME?
 
 #           - if sudo ping -q -c 1 -w 1 -i 1 <IP address from previous step>
 
@@ -384,17 +384,17 @@ sub MAIN (
     my $resolved-client-ip-address;
     my $resolved-client-ip-label;
     try {
-if $try-label ~~ /:i 'jgstmgtgate1lpv' / {
-        $resolved-client-ip-address = '10.10.105.96';
-        $resolved-client-ip-label   = 'jgstmgtgate1lpv.wmata.local';
-}
-else {
+#if $try-label ~~ /:i 'jgstmgtgate1lpv' / {
+#        $resolved-client-ip-address = '10.10.105.96';
+#        $resolved-client-ip-label   = 'jgstmgtgate1lpv.wmata.local';
+#}
+#else {
         $resolved-client-ip-address = lookup-forward($try-label);
         $resolved-client-ip-label   = lookup-reverse($resolved-client-ip-address, :expectation($try-label));
         CATCH {
             warn "Unable to resolve IP information for $NODE_NAME" unless $resolved-client-ip-label && $resolved-client-ip-address;
         }
-    }
+#    }
 }
 
     my ISP::dsmadmc $dsmadmc   .= new(:isp-server($SERVER_NAME), :$isp-admin);
