@@ -247,7 +247,7 @@ sub lookup-reverse (Str:D $ip-address!, Str :$expectation) {
                         return $record<name>.Str if $record<name>.Str ~~ m:i/ ^ $expectation /;
                     }
                 }
-                return $match<record> if $match<record>:exists;
+                return $match<record>.Str if $match<record>:exists;
             }
         }
     }
