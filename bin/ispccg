@@ -72,7 +72,7 @@ for @redis-clis -> @redis-cli {
     my @rcmd    = flat @redis-cli,
                   '--raw',
                   'SMEMBERS',
-                  'wmata:dns:domains';
+                  'our:dns:domains';
     my $proc    = run   @rcmd, :out, :err;
     my $out     = $proc.out.slurp(:close);
     my $err     = $proc.err.slurp(:close);
@@ -86,7 +86,7 @@ for @redis-clis -> @redis-cli {
     my @rcmd    = flat @redis-cli,
                   '--raw',
                   'SMEMBERS',
-                  'wmata:dns:servers';
+                  'our:dns:servers';
     my $proc    = run   @rcmd, :out, :err;
     my $out     = $proc.out.slurp(:close);
     my $err     = $proc.err.slurp(:close);
@@ -98,9 +98,6 @@ for @redis-clis -> @redis-cli {
 }
 
 #   Grammars
-
-#   P520TSMJGB.wmata.com.   0       IN      CNAME   jatsmprd03.wmata.com.
-#   jatsmprd03.wmata.com.   0       IN      A       10.10.137.41
 
 grammar DIG_FORWARD {
     token TOP {
@@ -148,9 +145,6 @@ grammar DIG_FORWARD {
         ( \w || '-' || '.' <!before \s> )+
     }
 }
-
-#   194.1.121.170.in-addr.arpa. 259200 IN   PTR     nimjgb.wmata.com.
-#   194.1.121.170.in-addr.arpa. 259200 IN   PTR     p650nimjgb.wmata.com.
 
 grammar DIG_REVERSE {
     token TOP {
@@ -384,9 +378,9 @@ sub MAIN (
     my $resolved-client-ip-address;
     my $resolved-client-ip-label;
     try {
- if $try-label ~~ /:i 'JGAPPWWW1PP' / {
-         $resolved-client-ip-address = '170.121.70.50';
-         $resolved-client-ip-label   = 'JGAPPWWW1PP.wmata.local';
+ if $try-label ~~ /:i 'xxxxxxxxxxx' / {
+         $resolved-client-ip-address = '192.168.99.00';
+         $resolved-client-ip-label   = 'xxxxxxxxxxx.xxxxx.xxx';
  }
  else {
         $resolved-client-ip-address = lookup-forward($try-label);
