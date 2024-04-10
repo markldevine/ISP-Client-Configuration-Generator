@@ -11,7 +11,7 @@ use Data::Dump::Tree;
 my %isp-servers;
 my @dns-servers;
 my @dns-domains;
-constant @redis-servers = <jgstmgtgate1lpv.wmata.local ctstmgtgate1lpv.wmata.local>;
+my @redis-servers = slurp("$*HOME/.redis-servers").chomp.split("\n");
 
 my @redis-clis;
 for @redis-servers -> $redis-server {
