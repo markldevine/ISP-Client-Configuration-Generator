@@ -72,7 +72,7 @@ for @redis-clis -> @redis-cli {
     my @rcmd    = flat @redis-cli,
                   '--raw',
                   'SMEMBERS',
-                  'our:dns:domains';
+                  'Our:dns:domains';
     my $proc    = run   @rcmd, :out, :err;
     my $out     = $proc.out.slurp(:close);
     my $err     = $proc.err.slurp(:close);
@@ -86,7 +86,7 @@ for @redis-clis -> @redis-cli {
     my @rcmd    = flat @redis-cli,
                   '--raw',
                   'SMEMBERS',
-                  'our:dns:servers';
+                  'Our:dns:servers';
     my $proc    = run   @rcmd, :out, :err;
     my $out     = $proc.out.slurp(:close);
     my $err     = $proc.err.slurp(:close);
